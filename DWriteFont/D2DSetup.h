@@ -25,4 +25,7 @@ private:
 
 	ID2D1Factory*	mFactory;
 	ID2D1HwndRenderTarget*	mRenderTarget;
+	IDWriteFactory* mDwriteFactory;
+	IDWriteTextFormat* mTextFormat;
+	ID2D1SolidColorBrush* mBlackBrush;
 };

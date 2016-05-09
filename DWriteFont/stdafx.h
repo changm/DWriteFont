@@ -19,5 +19,6 @@
 
 // Included to link some libraries
 #pragma comment(lib, "d2d1.lib")
+#pragma comment(lib, "Dwrite.lib")
 
 // TODO: reference additional headers your program requires here
