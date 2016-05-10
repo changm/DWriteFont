@@ -18,6 +18,8 @@ public:
 
 	void DrawText();
 	void Init();
+	void DrawWithMask();
+	void PrintFonts(IDWriteFontCollection* aFontCollection);
 
 private:
 	HWND mHWND;

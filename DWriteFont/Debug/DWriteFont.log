@@ -1,2 +1,4 @@
 ﻿  D2DSetup.cpp
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(36): warning C4018: '<': signed/unsigned mismatch
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(45): warning C4101: 'localName': unreferenced local variable
   DWriteFont.vcxproj -> C:\Users\masonchang\documents\visual studio 2015\Projects\DWriteFont\Debug\DWriteFont.exe

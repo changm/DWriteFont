@@ -6,6 +6,15 @@
 #include <stdio.h>
 #include "D2DSetup.h"
 
+static void InitConsole()
+{
+	AllocConsole();
+	AttachConsole(GetCurrentProcessId());
+	FILE* pFile;
+	freopen_s(&pFile, "CON", "w", stdout);
+}
+
+
 #define MAX_LOADSTRING 100
 
 // Global Variables:
@@ -26,6 +35,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 {
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
+	InitConsole();
 
     // TODO: Place code here.
 
@@ -120,7 +130,8 @@ static void PaintText(HWND aHWND, HDC aHDC)
 {
 	printf("Painting text\n");
 	D2DSetup d2d(aHWND, aHDC);
-	d2d.DrawText();
+	//d2d.DrawText();
+	d2d.DrawWithMask();
 }
 
 //
