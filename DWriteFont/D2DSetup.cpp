@@ -16,7 +16,7 @@ D2DSetup::~D2DSetup()
 
 void D2DSetup::DrawText()
 {
-	static const WCHAR message[] = L"Hello World";
+	static const WCHAR message[] = L"H";
 
 	mRenderTarget->BeginDraw();
 	mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
@@ -56,12 +56,12 @@ void D2DSetup::PrintFonts(IDWriteFontCollection* aFontCollection)
 
 void D2DSetup::DrawWithMask()
 {
-	static const WCHAR message[] = L"H";
+	static const WCHAR message[] = L"Hello";
 	static const WCHAR fontFamilyName[] = L"Consolas";
 
 	int length = ARRAYSIZE(message) - 1;
 	mRenderTarget->BeginDraw();
-	mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
+	//mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
 
 	IDWriteFontCollection* systemFonts;
 	mDwriteFactory->GetSystemFontCollection(&systemFonts, TRUE);
@@ -83,19 +83,29 @@ void D2DSetup::DrawWithMask()
 	FLOAT advance = 0;
 
 	// Map our things
-	UINT16 glyphIndices[1];
-	UINT32 textLength = 1;
-	UINT32 codePoints[1];
-	codePoints[0] = message[0];
+	UINT16 glyphIndices[6];
+	UINT32 textLength = 6;
+	UINT32 codePoints[6];
+	DWRITE_GLYPH_METRICS metrics[6];
+	FLOAT advances[6];
+
+	for (int i = 0; i < 6; i++) {
+		codePoints[i] = message[i];
+	}
 	fontFace->GetGlyphIndicesW(codePoints, textLength, glyphIndices);
+
+	fontFace->GetDesignGlyphMetrics(glyphIndices, textLength, metrics);
+	for (int i = 0; i < 6; i++) {
+		advances[i] = metrics[i].advanceWidth;
+	}
 
 	DWRITE_GLYPH_OFFSET offset;
 	offset.advanceOffset = 0;
 	offset.ascenderOffset = 0;
 
 	DWRITE_GLYPH_RUN glyphRun;
-	glyphRun.glyphCount = 1;
-	glyphRun.glyphAdvances = &advance;
+	glyphRun.glyphCount = 5;
+	glyphRun.glyphAdvances = advances;
 	glyphRun.fontFace = fontFace;
 	glyphRun.fontEmSize = 28;
 	glyphRun.bidiLevel = 0;
@@ -103,13 +113,13 @@ void D2DSetup::DrawWithMask()
 	glyphRun.isSideways = FALSE;
 	glyphRun.glyphOffsets = &offset;
 
-	IDWriteGlyphRunAnalysis* analysis;
+	//IDWriteGlyphRunAnalysis* analysis;
 	// The 1.0f could be pretty bad here since it's not accounting for DPI
-	mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC, DWRITE_MEASURING_MODE_NATURAL, 0.f, 0.f, &analysis);
+	//mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC, DWRITE_MEASURING_MODE_NATURAL, 0.f, 0.f, &analysis);
 
 	D2D1_POINT_2F origin;
-	origin.x = 100;
-	origin.y = 100;
+	origin.x = 242;
+	origin.y = 200;
 	mRenderTarget->DrawGlyphRun(origin, &glyphRun, mBlackBrush);
 	mRenderTarget->EndDraw();
 }
@@ -144,7 +154,7 @@ void D2DSetup::Init()
 	hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), reinterpret_cast<IUnknown**>(&mDwriteFactory));
 	assert(hr == S_OK);
 
-	hr = mDwriteFactory->CreateTextFormat(L"Helvetica", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 24, L"", &mTextFormat);
+	hr = mDwriteFactory->CreateTextFormat(L"Consolas", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 28, L"", &mTextFormat);
 	assert(hr == S_OK);
 
 	mTextFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
@@ -163,5 +173,5 @@ void D2DSetup::Init()
 
 	IDWriteRenderingParams* monitorParams;
 	mDwriteFactory->CreateMonitorRenderingParams(GetPrimaryMonitorHandle(), &monitorParams);
-	mRenderTarget->SetTextRenderingParams(defaultParams);
+	mRenderTarget->SetTextRenderingParams(customParams);
 }
