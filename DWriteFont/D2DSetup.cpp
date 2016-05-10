@@ -16,7 +16,7 @@ D2DSetup::~D2DSetup()
 
 void D2DSetup::DrawText()
 {
-	static const WCHAR message[] = L"H";
+	static const WCHAR message[] = L"Hello World";
 
 	mRenderTarget->BeginDraw();
 	mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
@@ -96,12 +96,15 @@ void D2DSetup::DrawWithMask()
 
 	fontFace->GetDesignGlyphMetrics(glyphIndices, textLength, metrics);
 	for (int i = 0; i < 6; i++) {
-		advances[i] = metrics[i].advanceWidth;
+		//advances[i] = metrics[i].advanceWidth;
+		advances[i] = 100;
 	}
 
-	DWRITE_GLYPH_OFFSET offset;
-	offset.advanceOffset = 0;
-	offset.ascenderOffset = 0;
+	DWRITE_GLYPH_OFFSET offset[6];
+	for (int i = 0; i < 6; i++) {
+		offset[i].advanceOffset = 0;
+		offset[i].ascenderOffset = 0;
+	}
 
 	DWRITE_GLYPH_RUN glyphRun;
 	glyphRun.glyphCount = 5;
@@ -111,7 +114,7 @@ void D2DSetup::DrawWithMask()
 	glyphRun.bidiLevel = 0;
 	glyphRun.glyphIndices = glyphIndices;
 	glyphRun.isSideways = FALSE;
-	glyphRun.glyphOffsets = &offset;
+	glyphRun.glyphOffsets = offset;
 
 	//IDWriteGlyphRunAnalysis* analysis;
 	// The 1.0f could be pretty bad here since it's not accounting for DPI
