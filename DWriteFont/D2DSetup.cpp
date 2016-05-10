@@ -4,6 +4,7 @@
 #include <d2d1.h>
 #include <d2d1helper.h>
 #include <assert.h>
+#include <stdio.h>
 
 D2DSetup::~D2DSetup()
 {
@@ -96,8 +97,9 @@ void D2DSetup::DrawWithMask()
 
 	fontFace->GetDesignGlyphMetrics(glyphIndices, textLength, metrics);
 	for (int i = 0; i < 6; i++) {
-		//advances[i] = metrics[i].advanceWidth;
-		advances[i] = 100;
+		//advances[i] = metrics[i].advanceWidth / 96.0;
+		//printf("Advance is: %f\n", advances[i]);
+		advances[i] = 15;
 	}
 
 	DWRITE_GLYPH_OFFSET offset[6];
@@ -121,7 +123,7 @@ void D2DSetup::DrawWithMask()
 	//mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC, DWRITE_MEASURING_MODE_NATURAL, 0.f, 0.f, &analysis);
 
 	D2D1_POINT_2F origin;
-	origin.x = 242;
+	origin.x = 165;
 	origin.y = 200;
 	mRenderTarget->DrawGlyphRun(origin, &glyphRun, mBlackBrush);
 	mRenderTarget->EndDraw();
