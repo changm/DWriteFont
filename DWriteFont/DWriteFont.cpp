@@ -130,7 +130,7 @@ static void PaintText(HWND aHWND, HDC aHDC)
 {
 	printf("Painting text\n");
 	D2DSetup d2d(aHWND, aHDC);
-	d2d.DrawText();
+	//d2d.DrawText();
 	d2d.DrawWithMask();
 }
 

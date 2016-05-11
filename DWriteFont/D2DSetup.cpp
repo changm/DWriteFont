@@ -62,7 +62,7 @@ void D2DSetup::DrawWithMask()
 
 	int length = ARRAYSIZE(message) - 1;
 	mRenderTarget->BeginDraw();
-	//mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
+	mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
 
 	IDWriteFontCollection* systemFonts;
 	mDwriteFactory->GetSystemFontCollection(&systemFonts, TRUE);
@@ -118,14 +118,53 @@ void D2DSetup::DrawWithMask()
 	glyphRun.isSideways = FALSE;
 	glyphRun.glyphOffsets = offset;
 
-	//IDWriteGlyphRunAnalysis* analysis;
+	IDWriteGlyphRunAnalysis* analysis;
 	// The 1.0f could be pretty bad here since it's not accounting for DPI
-	//mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC, DWRITE_MEASURING_MODE_NATURAL, 0.f, 0.f, &analysis);
+	mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC, DWRITE_MEASURING_MODE_NATURAL, 0.0f, 0.0f, &analysis);
+	RECT bounds;
+	analysis->GetAlphaTextureBounds(DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
+
+	float width = bounds.right - bounds.left;
+	float height = bounds.bottom - bounds.top;
+	int bufferSize = width * height * 3;
+	BYTE* image = (BYTE*)malloc(bufferSize);
+	memset(image, 0, bufferSize);
+	hr = analysis->CreateAlphaTexture(DWRITE_TEXTURE_TYPE::DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds, image, bufferSize);
+	assert(hr == S_OK);
+
+	// Now try to make a bitmap
+	ID2D1Bitmap* bitmap;
+	//D2D1_BITMAP_PROPERTIES properties = { DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED };
+	D2D1_BITMAP_PROPERTIES properties = { DXGI_FORMAT_B8G8R8A8_UNORM,  D2D1_ALPHA_MODE_PREMULTIPLIED };
+	D2D1_SIZE_U size = D2D1::SizeU(width, height);
+	hr = mRenderTarget->CreateBitmap(size, image, width * 3, properties, &bitmap);
+	if (hr != S_OK) {
+		printf("Last error is: %d\n", GetLastError());
+	}
+	assert(hr == S_OK);
+
+	D2D1_RECT_F destRect;
+	destRect.left = 100 + bounds.left;
+	destRect.right = 100 + bounds.right;
+	destRect.top = 100 + bounds.top;
+	destRect.bottom = 100+ bounds.bottom;
+
+	D2D1_RECT_F srcRect;
+	srcRect.left = 0;
+	srcRect.right = width;
+	srcRect.top = 0;
+	srcRect.bottom = height;
+
+	mRenderTarget->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
+	mRenderTarget->FillOpacityMask(bitmap, mBlackBrush, D2D1_OPACITY_MASK_CONTENT_GRAPHICS, &destRect, &srcRect);
+	//mRenderTarget->DrawBitmap(bitmap, &destRect, 1.0, D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR, &srcRect);
+	//mRenderTarget->DrawBitmap(bitmap, &destRect, 1.0);
 
 	D2D1_POINT_2F origin;
 	origin.x = 165;
 	origin.y = 200;
 	mRenderTarget->DrawGlyphRun(origin, &glyphRun, mBlackBrush);
+
 	mRenderTarget->EndDraw();
 }
 
@@ -178,5 +217,5 @@ void D2DSetup::Init()
 
 	IDWriteRenderingParams* monitorParams;
 	mDwriteFactory->CreateMonitorRenderingParams(GetPrimaryMonitorHandle(), &monitorParams);
-	mRenderTarget->SetTextRenderingParams(customParams);
+	mRenderTarget->SetTextRenderingParams(defaultParams);
 }

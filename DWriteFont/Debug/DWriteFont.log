@@ -1,4 +1,13 @@
 ﻿  D2DSetup.cpp
 c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(37): warning C4018: '<': signed/unsigned mismatch
 c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(46): warning C4101: 'localName': unreferenced local variable
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(127): warning C4244: 'initializing': conversion from 'LONG' to 'float', possible loss of data
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(128): warning C4244: 'initializing': conversion from 'LONG' to 'float', possible loss of data
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(129): warning C4244: 'initializing': conversion from 'float' to 'int', possible loss of data
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(139): warning C4244: 'argument': conversion from 'float' to 'UINT32', possible loss of data
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(140): warning C4244: 'argument': conversion from 'float' to 'UINT32', possible loss of data
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(147): warning C4244: '=': conversion from 'LONG' to 'FLOAT', possible loss of data
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(148): warning C4244: '=': conversion from 'LONG' to 'FLOAT', possible loss of data
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(149): warning C4244: '=': conversion from 'LONG' to 'FLOAT', possible loss of data
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(150): warning C4244: '=': conversion from 'LONG' to 'FLOAT', possible loss of data
   DWriteFont.vcxproj -> C:\Users\masonchang\documents\visual studio 2015\Projects\DWriteFont\Debug\DWriteFont.exe
