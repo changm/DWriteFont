@@ -128,16 +128,32 @@ void D2DSetup::DrawWithMask()
 	float height = bounds.bottom - bounds.top;
 	int bufferSize = width * height * 3;
 	BYTE* image = (BYTE*)malloc(bufferSize);
-	memset(image, 0, bufferSize);
+	memset(image, 0xFF, bufferSize);
 	hr = analysis->CreateAlphaTexture(DWRITE_TEXTURE_TYPE::DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds, image, bufferSize);
 	assert(hr == S_OK);
+
+	BYTE* bitmapImage = (BYTE*)malloc(width * height * 4);
+	memset(bitmapImage, 0x00, (width * height * 4));
+	for (int y = 0; y < height; y++) {
+		int threeHeight = y * width * 3;
+		int fourHeight = y * width * 4;
+		for (int i = 0; i < width; i++) {
+			int fourIndex = fourHeight + (4 * i);
+			int threeIndex = threeHeight + (i * 3);
+			bitmapImage[fourIndex] = image[threeIndex];
+			bitmapImage[fourIndex + 1] = image[threeIndex + 1];
+			bitmapImage[fourIndex + 2] = image[threeIndex + 2];
+			bitmapImage[fourIndex + 3] = 0xFF;
+		}
+	}
 
 	// Now try to make a bitmap
 	ID2D1Bitmap* bitmap;
 	//D2D1_BITMAP_PROPERTIES properties = { DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED };
 	D2D1_BITMAP_PROPERTIES properties = { DXGI_FORMAT_B8G8R8A8_UNORM,  D2D1_ALPHA_MODE_PREMULTIPLIED };
 	D2D1_SIZE_U size = D2D1::SizeU(width, height);
-	hr = mRenderTarget->CreateBitmap(size, image, width * 3, properties, &bitmap);
+
+	hr = mRenderTarget->CreateBitmap(size, bitmapImage, width * 4, properties, &bitmap);
 	if (hr != S_OK) {
 		printf("Last error is: %d\n", GetLastError());
 	}
@@ -156,8 +172,8 @@ void D2DSetup::DrawWithMask()
 	srcRect.bottom = height;
 
 	mRenderTarget->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
-	mRenderTarget->FillOpacityMask(bitmap, mBlackBrush, D2D1_OPACITY_MASK_CONTENT_GRAPHICS, &destRect, &srcRect);
-	//mRenderTarget->DrawBitmap(bitmap, &destRect, 1.0, D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR, &srcRect);
+	//mRenderTarget->FillOpacityMask(bitmap, mBlackBrush, D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, &destRect, &srcRect);
+	mRenderTarget->DrawBitmap(bitmap, &destRect, 1.0, D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR, &srcRect);
 	//mRenderTarget->DrawBitmap(bitmap, &destRect, 1.0);
 
 	D2D1_POINT_2F origin;
