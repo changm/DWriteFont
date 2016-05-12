@@ -1,17 +1,17 @@
 ﻿  D2DSetup.cpp
-c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(37): warning C4018: '<': signed/unsigned mismatch
-c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(46): warning C4101: 'localName': unreferenced local variable
-c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(127): warning C4244: 'initializing': conversion from 'LONG' to 'float', possible loss of data
-c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(128): warning C4244: 'initializing': conversion from 'LONG' to 'float', possible loss of data
-c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(129): warning C4244: 'initializing': conversion from 'float' to 'int', possible loss of data
-c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(135): warning C4244: 'argument': conversion from 'float' to 'size_t', possible loss of data
-c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(136): warning C4244: 'argument': conversion from 'float' to 'size_t', possible loss of data
-c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(138): warning C4244: 'initializing': conversion from 'float' to 'int', possible loss of data
-c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(139): warning C4244: 'initializing': conversion from 'float' to 'int', possible loss of data
-c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(154): warning C4244: 'argument': conversion from 'float' to 'UINT32', possible loss of data
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(39): warning C4018: '<': signed/unsigned mismatch
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(48): warning C4101: 'localName': unreferenced local variable
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(129): warning C4244: 'initializing': conversion from 'LONG' to 'float', possible loss of data
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(130): warning C4244: 'initializing': conversion from 'LONG' to 'float', possible loss of data
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(131): warning C4244: 'initializing': conversion from 'float' to 'int', possible loss of data
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(137): warning C4244: 'argument': conversion from 'float' to 'size_t', possible loss of data
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(138): warning C4244: 'argument': conversion from 'float' to 'size_t', possible loss of data
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(140): warning C4244: 'initializing': conversion from 'float' to 'int', possible loss of data
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(141): warning C4244: 'initializing': conversion from 'float' to 'int', possible loss of data
 c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(156): warning C4244: 'argument': conversion from 'float' to 'UINT32', possible loss of data
-c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(163): warning C4244: '=': conversion from 'LONG' to 'FLOAT', possible loss of data
-c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(164): warning C4244: '=': conversion from 'LONG' to 'FLOAT', possible loss of data
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(158): warning C4244: 'argument': conversion from 'float' to 'UINT32', possible loss of data
 c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(165): warning C4244: '=': conversion from 'LONG' to 'FLOAT', possible loss of data
 c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(166): warning C4244: '=': conversion from 'LONG' to 'FLOAT', possible loss of data
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(167): warning C4244: '=': conversion from 'LONG' to 'FLOAT', possible loss of data
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(168): warning C4244: '=': conversion from 'LONG' to 'FLOAT', possible loss of data
   DWriteFont.vcxproj -> C:\Users\masonchang\documents\visual studio 2015\Projects\DWriteFont\Debug\DWriteFont.exe

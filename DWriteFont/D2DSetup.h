@@ -30,4 +30,6 @@ private:
 	IDWriteFactory* mDwriteFactory;
 	IDWriteTextFormat* mTextFormat;
 	ID2D1SolidColorBrush* mBlackBrush;
+	ID2D1SolidColorBrush* mWhiteBrush;
+	ID2D1SolidColorBrush* mTransparentBlackBrush;
 };

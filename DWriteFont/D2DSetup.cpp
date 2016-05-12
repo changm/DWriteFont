@@ -13,6 +13,8 @@ D2DSetup::~D2DSetup()
 	mDwriteFactory->Release();
 	mTextFormat->Release();
 	mBlackBrush->Release();
+	mTransparentBlackBrush->Release();
+	mWhiteBrush->Release();
 }
 
 void D2DSetup::DrawText()
@@ -62,7 +64,7 @@ void D2DSetup::DrawWithMask()
 
 	int length = ARRAYSIZE(message) - 1;
 	mRenderTarget->BeginDraw();
-	mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
+	mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::Black));
 
 	IDWriteFontCollection* systemFonts;
 	mDwriteFactory->GetSystemFontCollection(&systemFonts, TRUE);
@@ -179,7 +181,7 @@ void D2DSetup::DrawWithMask()
 	D2D1_POINT_2F origin;
 	origin.x = 165;
 	origin.y = 200;
-	mRenderTarget->DrawGlyphRun(origin, &glyphRun, mBlackBrush);
+	mRenderTarget->DrawGlyphRun(origin, &glyphRun, mWhiteBrush);
 
 	mRenderTarget->EndDraw();
 }
@@ -221,6 +223,8 @@ void D2DSetup::Init()
 	mTextFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
 
 	hr = mRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black, 1.0f), &mBlackBrush);
+	hr = mRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White, 1.0f), &mWhiteBrush);
+	hr = mRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black, 0.0f), &mTransparentBlackBrush);
 
 	// Now we can play with params
 	mRenderTarget->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_DEFAULT);
