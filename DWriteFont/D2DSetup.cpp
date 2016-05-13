@@ -20,17 +20,22 @@ D2DSetup::~D2DSetup()
 
 }
 
-void D2DSetup::DrawText()
+void D2DSetup::Clear()
 {
-	static const WCHAR message[] = L"Hello World";
-
 	mRenderTarget->BeginDraw();
 	mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
+	mRenderTarget->EndDraw();
+}
+
+void D2DSetup::DrawText()
+{
+	static const WCHAR message[] = L"Hello DrawText";
+	mRenderTarget->BeginDraw();
 
 	mRenderTarget->DrawTextW(message,
 		ARRAYSIZE(message) - 1,
 		mTextFormat,
-		D2D1::RectF(0, 0, 500, 500),
+		D2D1::RectF(0, 100, 500, 500),
 		mBlackBrush);
 
 	mRenderTarget->EndDraw();
@@ -70,10 +75,11 @@ Blend(float src, float dst, float alpha) {
 
 IDWriteFontFace* D2DSetup::GetFontFace()
 {
-	static const WCHAR fontFamilyName[] = L"Consolas";
+	static const WCHAR fontFamilyName[] = L"Arial";
 
 	IDWriteFontCollection* systemFonts;
 	mDwriteFactory->GetSystemFontCollection(&systemFonts, TRUE);
+	PrintFonts(systemFonts);
 
 	UINT32 fontIndex;
 	BOOL exists;
@@ -108,10 +114,11 @@ void D2DSetup::CreateGlyphRunAnalysis(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFac
 
 	fontFace->GetDesignGlyphMetrics(glyphIndices, length, metrics);
 	for (int i = 0; i < length; i++) {
-		//advances[i] = metrics[i].advanceWidth / 96.0;
+		advances[i] = metrics[i].advanceWidth / 70;
+		//printf("Metrics advance width: %d\n", metrics[i].advanceWidth);
 		//printf("Advance is: %f\n", advances[i]);
 		// 15 is about right but still wrong. The advances from GetDesignGlyphMetrics are too far apart....
-		advances[i] = 15;
+		//advances[i] = 15;
 	}
 
 	DWRITE_GLYPH_OFFSET* offset = new DWRITE_GLYPH_OFFSET[length];
@@ -144,20 +151,48 @@ void D2DSetup::DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y, IDWrite
 	mRenderTarget->EndDraw();
 }
 
-void D2DSetup::DrawWithMask()
+// Converts the given rgb 3x1 cleartype alpha mask to the required RGBA_UNOM as required by bitmaps
+// Also blends to draw black text on white
+BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height)
+{
+	int size = width * height * 4;
+	BYTE* bitmapImage = (BYTE*)malloc(size);
+	memset(bitmapImage, 0x00, size);
+
+	for (int y = 0; y < height; y++) {
+		int sourceHeight = y * width * 3;	// expect 3 bytes per pixel
+		int destHeight = y * width * 4;		// convert to 4 bytes per pixel to add alpha opaque channel
+
+		for (int i = 0; i < width; i++) {
+			int destIndex = destHeight + (4 * i);
+			int srcIndex = sourceHeight + (i * 3);
+
+			BYTE r = aRGB[srcIndex];
+			BYTE g = aRGB[srcIndex + 1];
+			BYTE b = aRGB[srcIndex + 2];
+
+			// Blend to draw black text on white
+			r = Blend(0, 0xFF, r);
+			g = Blend(0, 0xFF, g);
+			b = Blend(0, 0xFF, b);
+
+			bitmapImage[destIndex] = r;
+			bitmapImage[destIndex + 1] = g;
+			bitmapImage[destIndex + 2] = b;
+			bitmapImage[destIndex + 3] = 0xFF;
+		}
+	}
+	return bitmapImage;
+}
+
+void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun)
 {
 	mRenderTarget->BeginDraw();
-	mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
-	
-	IDWriteFontFace* fontFace = GetFontFace();
-	FLOAT advance = 0;
-
-	DWRITE_GLYPH_RUN glyphRun;
-	CreateGlyphRunAnalysis(glyphRun, fontFace);
 
 	IDWriteGlyphRunAnalysis* analysis;
-	// The 1.0f could be pretty bad here since it's not accounting for DPI
+	// The 1.0f could be pretty bad here since it's not accounting for DPI, every reference in gecko uses 1.0
 	mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL_SYMMETRIC, DWRITE_MEASURING_MODE_NATURAL, 0.0f, 0.0f, &analysis);
+
 	RECT bounds;
 	analysis->GetAlphaTextureBounds(DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
 
@@ -169,67 +204,36 @@ void D2DSetup::DrawWithMask()
 	HRESULT hr = analysis->CreateAlphaTexture(DWRITE_TEXTURE_TYPE::DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds, image, bufferSize);
 	assert(hr == S_OK);
 
-	BYTE* bitmapImage = (BYTE*)malloc(width * height * 4);
-	memset(bitmapImage, 0x00, (width * height * 4));
-	for (int y = 0; y < height; y++) {
-		int threeHeight = y * width * 3;
-		int fourHeight = y * width * 4;
-		for (int i = 0; i < width; i++) {
-			int fourIndex = fourHeight + (4 * i);
-			int threeIndex = threeHeight + (i * 3);
-
-			int r = image[threeIndex];
-			int g = image[threeIndex + 1];
-			int b = image[threeIndex + 2];
-
-
-			r = Blend(0, 0xFF, r);
-			g = Blend(0, 0xFF, g);
-			b = Blend(0, 0xFF, b);
-
-			/*
-			r = Blend(0xFF, 0, r);
-			g = Blend(0xFF, 0, g);
-			b = Blend(0xFF, 0, b);
-			*/
-
-			bitmapImage[fourIndex] = r;
-			bitmapImage[fourIndex + 1] = g;
-			bitmapImage[fourIndex + 2] = b;
-			bitmapImage[fourIndex + 3] = 0xFF;
-		}
-	}
+	BYTE* bitmapImage = ConvertToRGBA(image, width, height);
 
 	// Now try to make a bitmap
 	ID2D1Bitmap* bitmap;
-	//D2D1_BITMAP_PROPERTIES properties = { DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED };
-	D2D1_BITMAP_PROPERTIES properties = { DXGI_FORMAT_B8G8R8A8_UNORM,  D2D1_ALPHA_MODE_PREMULTIPLIED };
+	D2D1_BITMAP_PROPERTIES properties = { DXGI_FORMAT_R8G8B8A8_UNORM,  D2D1_ALPHA_MODE_PREMULTIPLIED };
 	D2D1_SIZE_U size = D2D1::SizeU(width, height);
 
 	hr = mRenderTarget->CreateBitmap(size, bitmapImage, width * 4, properties, &bitmap);
-	if (hr != S_OK) {
-		printf("Last error is: %d\n", GetLastError());
-	}
 	assert(hr == S_OK);
 
+	// Finally draw the bitmap somewhere
 	D2D1_RECT_F destRect;
 	destRect.left = 100 + bounds.left;
 	destRect.right = 100 + bounds.right;
 	destRect.top = 100 + bounds.top;
-	destRect.bottom = 100+ bounds.bottom;
+	destRect.bottom = 100 + bounds.bottom;
 
-	D2D1_RECT_F srcRect;
-	srcRect.left = 0;
-	srcRect.right = width;
-	srcRect.top = 0;
-	srcRect.bottom = height;
-
-	
-	mRenderTarget->DrawBitmap(bitmap, &destRect, 1.0, D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR, &srcRect);
+	mRenderTarget->DrawBitmap(bitmap, &destRect, 1.0);
 	mRenderTarget->EndDraw();
+}
 
-	DrawTextWithD2D(glyphRun, 165, 200, mCustomParams);
-	DrawTextWithD2D(glyphRun, 165, 250, mDefaultParams);
+void D2DSetup::DrawWithMask()
+{
+	IDWriteFontFace* fontFace = GetFontFace();
+	DWRITE_GLYPH_RUN glyphRun;
+	CreateGlyphRunAnalysis(glyphRun, fontFace);
+
+	DrawWithBitmap(glyphRun);
+	DrawTextWithD2D(glyphRun, xOrigin, 200, mCustomParams);
+	DrawTextWithD2D(glyphRun, xOrigin, 250, mDefaultParams);
 }
 
 static
@@ -262,7 +266,7 @@ void D2DSetup::Init()
 	hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), reinterpret_cast<IUnknown**>(&mDwriteFactory));
 	assert(hr == S_OK);
 
-	hr = mDwriteFactory->CreateTextFormat(L"Consolas", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 28, L"", &mTextFormat);
+	hr = mDwriteFactory->CreateTextFormat(L"Arial", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 28, L"", &mTextFormat);
 	assert(hr == S_OK);
 
 	mTextFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
@@ -288,6 +292,4 @@ void D2DSetup::Init()
 
 	IDWriteRenderingParams* monitorParams;
 	mDwriteFactory->CreateMonitorRenderingParams(GetPrimaryMonitorHandle(), &monitorParams);
-
-	
 }
