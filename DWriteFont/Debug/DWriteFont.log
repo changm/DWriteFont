@@ -18,6 +18,6 @@ c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\
 c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(190): warning C4244: '=': conversion from 'LONG' to 'FLOAT', possible loss of data
 c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(191): warning C4244: '=': conversion from 'LONG' to 'FLOAT', possible loss of data
 c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(192): warning C4244: '=': conversion from 'LONG' to 'FLOAT', possible loss of data
-c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(267): warning C4101: 'defaultParams': unreferenced local variable
-c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(270): warning C4101: 'customParams': unreferenced local variable
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(269): warning C4101: 'defaultParams': unreferenced local variable
+c:\users\masonchang\documents\visual studio 2015\projects\dwritefont\dwritefont\d2dsetup.cpp(272): warning C4101: 'customParams': unreferenced local variable
   DWriteFont.vcxproj -> C:\Users\masonchang\documents\visual studio 2015\Projects\DWriteFont\Debug\DWriteFont.exe

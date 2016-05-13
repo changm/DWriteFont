@@ -209,14 +209,16 @@ void D2DSetup::DrawWithMask()
 	origin.x = 165;
 	origin.y = 200;
 	mRenderTarget->DrawGlyphRun(origin, &glyphRun, mBlackBrush);
+	mRenderTarget->EndDraw();
+
+	mRenderTarget->Flush();
+	mRenderTarget->BeginDraw();
 
 	// Draw with lower contrast
 	mRenderTarget->SetTextRenderingParams(mDefaultParams);
 	origin.x = 165;
 	origin.y = 250;
 	mRenderTarget->DrawGlyphRun(origin, &glyphRun, mBlackBrush);
-
-
 
 	mRenderTarget->EndDraw();
 }
