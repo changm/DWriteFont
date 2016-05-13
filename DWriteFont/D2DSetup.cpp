@@ -57,6 +57,14 @@ void D2DSetup::PrintFonts(IDWriteFontCollection* aFontCollection)
 	}
 }
 
+static int
+Blend(float src, float dst, float alpha) {
+	float floatAlpha = alpha / 255;
+	//return dst + ((src - dst) * alpha >> 8);
+	float result = (src * floatAlpha) + (dst * (1 - floatAlpha));
+	return result;
+}
+
 void D2DSetup::DrawWithMask()
 {
 	static const WCHAR message[] = L"Hello";
@@ -64,7 +72,7 @@ void D2DSetup::DrawWithMask()
 
 	int length = ARRAYSIZE(message) - 1;
 	mRenderTarget->BeginDraw();
-	mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::Black));
+	mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
 
 	IDWriteFontCollection* systemFonts;
 	mDwriteFactory->GetSystemFontCollection(&systemFonts, TRUE);
@@ -122,7 +130,7 @@ void D2DSetup::DrawWithMask()
 
 	IDWriteGlyphRunAnalysis* analysis;
 	// The 1.0f could be pretty bad here since it's not accounting for DPI
-	mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC, DWRITE_MEASURING_MODE_NATURAL, 0.0f, 0.0f, &analysis);
+	mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL_SYMMETRIC, DWRITE_MEASURING_MODE_NATURAL, 0.0f, 0.0f, &analysis);
 	RECT bounds;
 	analysis->GetAlphaTextureBounds(DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
 
@@ -142,9 +150,25 @@ void D2DSetup::DrawWithMask()
 		for (int i = 0; i < width; i++) {
 			int fourIndex = fourHeight + (4 * i);
 			int threeIndex = threeHeight + (i * 3);
-			bitmapImage[fourIndex] = image[threeIndex];
-			bitmapImage[fourIndex + 1] = image[threeIndex + 1];
-			bitmapImage[fourIndex + 2] = image[threeIndex + 2];
+			// Invert to be black on white
+			int r = image[threeIndex];
+			int g = image[threeIndex + 1];
+			int b = image[threeIndex + 2];
+
+
+			r = Blend(0, 0xFF, r);
+			g = Blend(0, 0xFF, g);
+			b = Blend(0, 0xFF, b);
+
+			/*
+			r = Blend(0xFF, 0, r);
+			g = Blend(0xFF, 0, g);
+			b = Blend(0xFF, 0, b);
+			*/
+
+			bitmapImage[fourIndex] = r;
+			bitmapImage[fourIndex + 1] = g;
+			bitmapImage[fourIndex + 2] = b;
 			bitmapImage[fourIndex + 3] = 0xFF;
 		}
 	}
@@ -181,7 +205,7 @@ void D2DSetup::DrawWithMask()
 	D2D1_POINT_2F origin;
 	origin.x = 165;
 	origin.y = 200;
-	mRenderTarget->DrawGlyphRun(origin, &glyphRun, mWhiteBrush);
+	mRenderTarget->DrawGlyphRun(origin, &glyphRun, mBlackBrush);
 
 	mRenderTarget->EndDraw();
 }
