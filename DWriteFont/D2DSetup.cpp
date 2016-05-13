@@ -202,10 +202,21 @@ void D2DSetup::DrawWithMask()
 	mRenderTarget->DrawBitmap(bitmap, &destRect, 1.0, D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR, &srcRect);
 	//mRenderTarget->DrawBitmap(bitmap, &destRect, 1.0);
 
+
+	// Draw with higher contrast
+	mRenderTarget->SetTextRenderingParams(mCustomParams);
 	D2D1_POINT_2F origin;
 	origin.x = 165;
 	origin.y = 200;
 	mRenderTarget->DrawGlyphRun(origin, &glyphRun, mBlackBrush);
+
+	// Draw with lower contrast
+	mRenderTarget->SetTextRenderingParams(mDefaultParams);
+	origin.x = 165;
+	origin.y = 250;
+	mRenderTarget->DrawGlyphRun(origin, &glyphRun, mBlackBrush);
+
+
 
 	mRenderTarget->EndDraw();
 }
@@ -254,12 +265,18 @@ void D2DSetup::Init()
 	mRenderTarget->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_DEFAULT);
 
 	IDWriteRenderingParams* defaultParams;
-	mDwriteFactory->CreateRenderingParams(&defaultParams);
+	mDwriteFactory->CreateRenderingParams(&mDefaultParams);
 
 	IDWriteRenderingParams* customParams;
-	mDwriteFactory->CreateCustomRenderingParams(defaultParams->GetGamma(), defaultParams->GetEnhancedContrast(), defaultParams->GetClearTypeLevel(), defaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC, &customParams);
+	printf("Default param contrast is: %f\n", mDefaultParams->GetEnhancedContrast());
+	float contrast = mDefaultParams->GetEnhancedContrast();
+	contrast = 1.0f;
+
+	mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, mDefaultParams->GetClearTypeLevel(), mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC, &mCustomParams);
+	printf("Custom params is: %f\n", mCustomParams->GetEnhancedContrast());
 
 	IDWriteRenderingParams* monitorParams;
 	mDwriteFactory->CreateMonitorRenderingParams(GetPrimaryMonitorHandle(), &monitorParams);
-	mRenderTarget->SetTextRenderingParams(defaultParams);
+
+	
 }
