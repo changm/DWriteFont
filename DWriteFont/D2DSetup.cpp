@@ -15,6 +15,9 @@ D2DSetup::~D2DSetup()
 	mBlackBrush->Release();
 	mTransparentBlackBrush->Release();
 	mWhiteBrush->Release();
+	mDefaultParams->Release();
+	mCustomParams->Release();
+
 }
 
 void D2DSetup::DrawText()
@@ -65,14 +68,9 @@ Blend(float src, float dst, float alpha) {
 	return result;
 }
 
-void D2DSetup::DrawWithMask()
+IDWriteFontFace* D2DSetup::GetFontFace()
 {
-	static const WCHAR message[] = L"Hello";
 	static const WCHAR fontFamilyName[] = L"Consolas";
-
-	int length = ARRAYSIZE(message) - 1;
-	mRenderTarget->BeginDraw();
-	mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
 
 	IDWriteFontCollection* systemFonts;
 	mDwriteFactory->GetSystemFontCollection(&systemFonts, TRUE);
@@ -90,36 +88,39 @@ void D2DSetup::DrawWithMask()
 
 	IDWriteFontFace* fontFace;
 	actualFont->CreateFontFace(&fontFace);
+	return fontFace;
+}
 
-	FLOAT advance = 0;
+void D2DSetup::CreateGlyphRunAnalysis(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontFace)
+{
+	static const WCHAR message[] = L"Hello";
+	const int length = 6;
 
-	// Map our things
-	UINT16 glyphIndices[6];
-	UINT32 textLength = 6;
-	UINT32 codePoints[6];
-	DWRITE_GLYPH_METRICS metrics[6];
-	FLOAT advances[6];
+	UINT16* glyphIndices = new UINT16[length];
+	UINT32* codePoints = new UINT32[length];
+	DWRITE_GLYPH_METRICS* metrics = new DWRITE_GLYPH_METRICS[length];
+	FLOAT* advances = new FLOAT[length];
 
-	for (int i = 0; i < 6; i++) {
+	for (int i = 0; i < length; i++) {
 		codePoints[i] = message[i];
 	}
-	fontFace->GetGlyphIndicesW(codePoints, textLength, glyphIndices);
+	fontFace->GetGlyphIndicesW(codePoints, length, glyphIndices);
 
-	fontFace->GetDesignGlyphMetrics(glyphIndices, textLength, metrics);
-	for (int i = 0; i < 6; i++) {
+	fontFace->GetDesignGlyphMetrics(glyphIndices, length, metrics);
+	for (int i = 0; i < length; i++) {
 		//advances[i] = metrics[i].advanceWidth / 96.0;
 		//printf("Advance is: %f\n", advances[i]);
+		// 15 is about right but still wrong. The advances from GetDesignGlyphMetrics are too far apart....
 		advances[i] = 15;
 	}
 
-	DWRITE_GLYPH_OFFSET offset[6];
-	for (int i = 0; i < 6; i++) {
+	DWRITE_GLYPH_OFFSET* offset = new DWRITE_GLYPH_OFFSET[length];
+	for (int i = 0; i < length; i++) {
 		offset[i].advanceOffset = 0;
 		offset[i].ascenderOffset = 0;
 	}
 
-	DWRITE_GLYPH_RUN glyphRun;
-	glyphRun.glyphCount = 5;
+	glyphRun.glyphCount = length - 1;
 	glyphRun.glyphAdvances = advances;
 	glyphRun.fontFace = fontFace;
 	glyphRun.fontEmSize = 28;
@@ -127,6 +128,32 @@ void D2DSetup::DrawWithMask()
 	glyphRun.glyphIndices = glyphIndices;
 	glyphRun.isSideways = FALSE;
 	glyphRun.glyphOffsets = offset;
+}
+
+void D2DSetup::DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y, IDWriteRenderingParams* aParams)
+{
+	D2D1_POINT_2F origin;
+	origin.x = x;
+	origin.y = y;
+
+	mRenderTarget->BeginDraw();
+	mRenderTarget->SetTextRenderingParams(aParams);
+	mRenderTarget->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
+
+	mRenderTarget->DrawGlyphRun(origin, &glyphRun, mBlackBrush);
+	mRenderTarget->EndDraw();
+}
+
+void D2DSetup::DrawWithMask()
+{
+	mRenderTarget->BeginDraw();
+	mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
+	
+	IDWriteFontFace* fontFace = GetFontFace();
+	FLOAT advance = 0;
+
+	DWRITE_GLYPH_RUN glyphRun;
+	CreateGlyphRunAnalysis(glyphRun, fontFace);
 
 	IDWriteGlyphRunAnalysis* analysis;
 	// The 1.0f could be pretty bad here since it's not accounting for DPI
@@ -139,7 +166,7 @@ void D2DSetup::DrawWithMask()
 	int bufferSize = width * height * 3;
 	BYTE* image = (BYTE*)malloc(bufferSize);
 	memset(image, 0xFF, bufferSize);
-	hr = analysis->CreateAlphaTexture(DWRITE_TEXTURE_TYPE::DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds, image, bufferSize);
+	HRESULT hr = analysis->CreateAlphaTexture(DWRITE_TEXTURE_TYPE::DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds, image, bufferSize);
 	assert(hr == S_OK);
 
 	BYTE* bitmapImage = (BYTE*)malloc(width * height * 4);
@@ -150,7 +177,7 @@ void D2DSetup::DrawWithMask()
 		for (int i = 0; i < width; i++) {
 			int fourIndex = fourHeight + (4 * i);
 			int threeIndex = threeHeight + (i * 3);
-			// Invert to be black on white
+
 			int r = image[threeIndex];
 			int g = image[threeIndex + 1];
 			int b = image[threeIndex + 2];
@@ -197,30 +224,12 @@ void D2DSetup::DrawWithMask()
 	srcRect.top = 0;
 	srcRect.bottom = height;
 
-	mRenderTarget->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
-	//mRenderTarget->FillOpacityMask(bitmap, mBlackBrush, D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, &destRect, &srcRect);
+	
 	mRenderTarget->DrawBitmap(bitmap, &destRect, 1.0, D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR, &srcRect);
-	//mRenderTarget->DrawBitmap(bitmap, &destRect, 1.0);
-
-
-	// Draw with higher contrast
-	mRenderTarget->SetTextRenderingParams(mCustomParams);
-	D2D1_POINT_2F origin;
-	origin.x = 165;
-	origin.y = 200;
-	mRenderTarget->DrawGlyphRun(origin, &glyphRun, mBlackBrush);
 	mRenderTarget->EndDraw();
 
-	mRenderTarget->Flush();
-	mRenderTarget->BeginDraw();
-
-	// Draw with lower contrast
-	mRenderTarget->SetTextRenderingParams(mDefaultParams);
-	origin.x = 165;
-	origin.y = 250;
-	mRenderTarget->DrawGlyphRun(origin, &glyphRun, mBlackBrush);
-
-	mRenderTarget->EndDraw();
+	DrawTextWithD2D(glyphRun, 165, 200, mCustomParams);
+	DrawTextWithD2D(glyphRun, 165, 250, mDefaultParams);
 }
 
 static

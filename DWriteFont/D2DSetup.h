@@ -22,6 +22,10 @@ public:
 	void PrintFonts(IDWriteFontCollection* aFontCollection);
 
 private:
+	IDWriteFontFace* GetFontFace();
+	void DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y, IDWriteRenderingParams* aParams);
+	void CreateGlyphRunAnalysis(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontFace);
+
 	HWND mHWND;
 	HDC mHDC;
 
