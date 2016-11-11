@@ -27,7 +27,7 @@ private:
 	void DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y, IDWriteRenderingParams* aParams);
 	void CreateGlyphRunAnalysis(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontFace);
 	BYTE* ConvertToRGBA(BYTE* aRGB, int width, int height);
-	void DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun);
+	void DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y);
 
 	HWND mHWND;
 	HDC mHDC;
@@ -42,6 +42,5 @@ private:
 
 	IDWriteRenderingParams* mCustomParams;
 	IDWriteRenderingParams* mDefaultParams;
-
-	int xOrigin = 165;
+	int mFontSize = 18;
 };

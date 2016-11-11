@@ -29,7 +29,7 @@ void D2DSetup::Clear()
 
 void D2DSetup::DrawText()
 {
-	static const WCHAR message[] = L"Hello DrawText";
+	static const WCHAR message[] = L"Hello World DrawText";
 	mRenderTarget->BeginDraw();
 
 	mRenderTarget->DrawTextW(message,
@@ -99,8 +99,8 @@ IDWriteFontFace* D2DSetup::GetFontFace()
 
 void D2DSetup::CreateGlyphRunAnalysis(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontFace)
 {
-	static const WCHAR message[] = L"Hello";
-	const int length = 6;
+	static const WCHAR message[] = L"Hello World Glyph";
+	const int length = wcslen(message);
 
 	UINT16* glyphIndices = new UINT16[length];
 	UINT32* codePoints = new UINT32[length];
@@ -114,7 +114,7 @@ void D2DSetup::CreateGlyphRunAnalysis(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFac
 
 	fontFace->GetDesignGlyphMetrics(glyphIndices, length, metrics);
 	for (int i = 0; i < length; i++) {
-		advances[i] = metrics[i].advanceWidth / 70;
+		advances[i] = metrics[i].advanceWidth / 112;
 		//printf("Metrics advance width: %d\n", metrics[i].advanceWidth);
 		//printf("Advance is: %f\n", advances[i]);
 		// 15 is about right but still wrong. The advances from GetDesignGlyphMetrics are too far apart....
@@ -130,7 +130,7 @@ void D2DSetup::CreateGlyphRunAnalysis(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFac
 	glyphRun.glyphCount = length - 1;
 	glyphRun.glyphAdvances = advances;
 	glyphRun.fontFace = fontFace;
-	glyphRun.fontEmSize = 28;
+	glyphRun.fontEmSize = mFontSize;
 	glyphRun.bidiLevel = 0;
 	glyphRun.glyphIndices = glyphIndices;
 	glyphRun.isSideways = FALSE;
@@ -185,7 +185,7 @@ BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height)
 	return bitmapImage;
 }
 
-void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun)
+void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
 {
 	mRenderTarget->BeginDraw();
 
@@ -216,10 +216,10 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun)
 
 	// Finally draw the bitmap somewhere
 	D2D1_RECT_F destRect;
-	destRect.left = 100 + bounds.left;
-	destRect.right = 100 + bounds.right;
-	destRect.top = 100 + bounds.top;
-	destRect.bottom = 100 + bounds.bottom;
+	destRect.left = x + bounds.left;
+	destRect.right = x + bounds.right;
+	destRect.top = y + bounds.top;
+	destRect.bottom = y + bounds.bottom;
 
 	mRenderTarget->DrawBitmap(bitmap, &destRect, 1.0);
 	mRenderTarget->EndDraw();
@@ -231,9 +231,10 @@ void D2DSetup::DrawWithMask()
 	DWRITE_GLYPH_RUN glyphRun;
 	CreateGlyphRunAnalysis(glyphRun, fontFace);
 
-	DrawWithBitmap(glyphRun);
-	DrawTextWithD2D(glyphRun, xOrigin, 200, mCustomParams);
-	DrawTextWithD2D(glyphRun, xOrigin, 250, mDefaultParams);
+	const int xAxis = 163;
+	const int yAxis = 280;
+	DrawWithBitmap(glyphRun, xAxis, yAxis);
+	//DrawTextWithD2D(glyphRun, xAxis, yAxis + 20, mDefaultParams);
 }
 
 static
@@ -266,7 +267,7 @@ void D2DSetup::Init()
 	hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), reinterpret_cast<IUnknown**>(&mDwriteFactory));
 	assert(hr == S_OK);
 
-	hr = mDwriteFactory->CreateTextFormat(L"Arial", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 28, L"", &mTextFormat);
+	hr = mDwriteFactory->CreateTextFormat(L"Arial", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, mFontSize, L"", &mTextFormat);
 	assert(hr == S_OK);
 
 	mTextFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
