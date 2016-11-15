@@ -61,7 +61,6 @@ void D2DSetup::PrintFonts(IDWriteFontCollection* aFontCollection)
 
 		wchar_t fontName[256];
 		familyName->GetString(index, fontName, length + 1);
-		wprintf(L"Font name: %s\n", fontName);
 	}
 }
 
@@ -153,40 +152,7 @@ void D2DSetup::DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y, IDWrite
 
 // Converts the given rgb 3x1 cleartype alpha mask to the required RGBA_UNOM as required by bitmaps
 // Also blends to draw black text on white
-BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height)
-{
-	int size = width * height * 4;
-	BYTE* bitmapImage = (BYTE*)malloc(size);
-	memset(bitmapImage, 0x00, size);
-
-	for (int y = 0; y < height; y++) {
-		int sourceHeight = y * width * 3;	// expect 3 bytes per pixel
-		int destHeight = y * width * 4;		// convert to 4 bytes per pixel to add alpha opaque channel
-
-		for (int i = 0; i < width; i++) {
-			int destIndex = destHeight + (4 * i);
-			int srcIndex = sourceHeight + (i * 3);
-
-			BYTE r = aRGB[srcIndex];
-			BYTE g = aRGB[srcIndex + 1];
-			BYTE b = aRGB[srcIndex + 2];
-
-			// Blend to draw black text on white
-			r = Blend(0, 0xFF, r);
-			g = Blend(0, 0xFF, g);
-			b = Blend(0, 0xFF, b);
-
-			bitmapImage[destIndex] = r;
-			bitmapImage[destIndex + 1] = g;
-			bitmapImage[destIndex + 2] = b;
-			bitmapImage[destIndex + 3] = 0xFF;
-		}
-	}
-	return bitmapImage;
-}
-
-// Converts the rgb 3x1 cleartype alpha mask, applies a LUT from skia to it.
-BYTE* D2DSetup::ApplyLUT(BYTE* aRGB, int width, int height)
+BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT)
 {
 	int size = width * height * 4;
 	BYTE* bitmapImage = (BYTE*)malloc(size);
@@ -208,9 +174,11 @@ BYTE* D2DSetup::ApplyLUT(BYTE* aRGB, int width, int height)
 			BYTE g = aRGB[srcIndex + 1];
 			BYTE b = aRGB[srcIndex + 2];
 
-			r = sk_apply_lut_if<true>(r, tableR);
-			g = sk_apply_lut_if<true>(g, tableG);
-			b = sk_apply_lut_if<true>(b, tableB);
+			if (useLUT) {
+				r = sk_apply_lut_if<true>(r, tableR);
+				g = sk_apply_lut_if<true>(g, tableG);
+				b = sk_apply_lut_if<true>(b, tableB);
+			}
 
 			// Blend to draw black text on white
 			r = Blend(0, 0xFF, r);
@@ -224,10 +192,9 @@ BYTE* D2DSetup::ApplyLUT(BYTE* aRGB, int width, int height)
 		}
 	}
 	return bitmapImage;
-
 }
 
-void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
+void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool useLUT)
 {
 	mRenderTarget->BeginDraw();
 
@@ -246,7 +213,7 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
 	HRESULT hr = analysis->CreateAlphaTexture(DWRITE_TEXTURE_TYPE::DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds, image, bufferSize);
 	assert(hr == S_OK);
 
-	BYTE* bitmapImage = ConvertToRGBA(image, width, height);
+	BYTE* bitmapImage = ConvertToRGBA(image, width, height, useLUT);
 
 	// Now try to make a bitmap
 	ID2D1Bitmap* bitmap;
@@ -276,52 +243,12 @@ void D2DSetup::DrawWithMask()
 	WCHAR bitmapMessage[] = L"Hello World Bitmap";
 	DWRITE_GLYPH_RUN bitmapGlyphRun;
 	CreateGlyphRunAnalysis(bitmapGlyphRun, fontFace, bitmapMessage);
-	DrawWithBitmap(bitmapGlyphRun, xAxis, yAxis);
+	DrawWithBitmap(bitmapGlyphRun, xAxis, yAxis, false);
 
 	WCHAR lutMessage[] = L"Hello World LUT";
 	DWRITE_GLYPH_RUN lutGlyphRun;
 	CreateGlyphRunAnalysis(lutGlyphRun, fontFace, lutMessage);
-	DrawWithBitmap(lutGlyphRun, xAxis, yAxis - 20);
-}
-
-void D2DSetup::DrawWithLUT(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
-{
-	mRenderTarget->BeginDraw();
-
-	IDWriteGlyphRunAnalysis* analysis;
-	// The 1.0f could be pretty bad here since it's not accounting for DPI, every reference in gecko uses 1.0
-	mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL_SYMMETRIC, DWRITE_MEASURING_MODE_NATURAL, 0.0f, 0.0f, &analysis);
-
-	RECT bounds;
-	analysis->GetAlphaTextureBounds(DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
-
-	float width = bounds.right - bounds.left;
-	float height = bounds.bottom - bounds.top;
-	int bufferSize = width * height * 3;
-	BYTE* image = (BYTE*)malloc(bufferSize);
-	memset(image, 0xFF, bufferSize);
-	HRESULT hr = analysis->CreateAlphaTexture(DWRITE_TEXTURE_TYPE::DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds, image, bufferSize);
-	assert(hr == S_OK);
-
-	BYTE* bitmapImage = ApplyLUT(image, width, height);
-
-	// Now try to make a bitmap
-	ID2D1Bitmap* bitmap;
-	D2D1_BITMAP_PROPERTIES properties = { DXGI_FORMAT_R8G8B8A8_UNORM,  D2D1_ALPHA_MODE_PREMULTIPLIED };
-	D2D1_SIZE_U size = D2D1::SizeU(width, height);
-
-	hr = mRenderTarget->CreateBitmap(size, bitmapImage, width * 4, properties, &bitmap);
-	assert(hr == S_OK);
-
-	// Finally draw the bitmap somewhere
-	D2D1_RECT_F destRect;
-	destRect.left = x + bounds.left;
-	destRect.right = x + bounds.right;
-	destRect.top = y + bounds.top;
-	destRect.bottom = y + bounds.bottom;
-
-	mRenderTarget->DrawBitmap(bitmap, &destRect, 1.0);
-	mRenderTarget->EndDraw();
+	DrawWithBitmap(lutGlyphRun, xAxis, yAxis - 20, true);
 }
 
 static
@@ -371,7 +298,9 @@ void D2DSetup::Init()
 	mDwriteFactory->CreateRenderingParams(&mDefaultParams);
 
 	IDWriteRenderingParams* customParams;
-	printf("Default param contrast is: %f\n", mDefaultParams->GetEnhancedContrast());
+	printf("Default param contrast is: %f, gamma: %f\n",
+		    mDefaultParams->GetEnhancedContrast(),
+			mDefaultParams->GetGamma());
 	float contrast = mDefaultParams->GetEnhancedContrast();
 	contrast = 1.0f;
 
@@ -382,27 +311,12 @@ void D2DSetup::Init()
 	mDwriteFactory->CreateMonitorRenderingParams(GetPrimaryMonitorHandle(), &monitorParams);
 }
 
-/*
-//static
-SkMaskGamma::PreBlend SkScalerContext::GetMaskPreBlend(const SkScalerContext::Rec& rec) {
-	SkAutoMutexAcquire ama(gMaskGammaCacheMutex);
-	const SkMaskGamma& maskGamma = cachedMaskGamma(rec.getContrast(),
-		rec.getPaintGamma(),
-		rec.getDeviceGamma());
-	return maskGamma.preBlend(rec.getLuminanceColor());
-}
-*/
-
 SkMaskGamma::PreBlend D2DSetup::CreateLUT()
 {
 	const float contrast = 0.5;
 	const float paintGamma = 1.8;
 	const float deviceGamma = 1.8;
 	SkMaskGamma* gamma = new SkMaskGamma(contrast, paintGamma, deviceGamma);
-
-	for (U8CPU i = 0; i < 255; i++) {
-		printf("Previous Component: %u, lut value: %u\n", i, gamma->fGammaTables[0][i]);
-	}
 
 	// Gecko is always setting the preblend to black background.
 	SkColor blackLuminanceColor = SkColorSetARGBInline(255, 0, 0, 0);

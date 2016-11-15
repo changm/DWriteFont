@@ -38,9 +38,8 @@ private:
 	IDWriteFontFace* GetFontFace();
 	void DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y, IDWriteRenderingParams* aParams);
 	void CreateGlyphRunAnalysis(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontFace, WCHAR message[]);
-	BYTE* ConvertToRGBA(BYTE* aRGB, int width, int height);
-	BYTE* ApplyLUT(BYTE* aRGB, int width, int height);
-	void DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y);
+	BYTE* ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT);
+	void DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool useLUT);
 	void DrawWithLUT(DWRITE_GLYPH_RUN& glyphRun, int x, int y);
 
 	HWND mHWND;
