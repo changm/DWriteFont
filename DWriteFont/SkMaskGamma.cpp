@@ -13,13 +13,11 @@
 
 class SkGammaColorSpaceLuminance : public SkColorSpaceLuminance {
     SkScalar toLuma(SkScalar gamma, SkScalar luminance) const override {
-        //return SkScalarPow(luminance, gamma);
-		return 0;
+        return SkScalarPow(luminance, gamma);
     }
 
     SkScalar fromLuma(SkScalar gamma, SkScalar luma) const override {
-        //return SkScalarPow(luma, SkScalarInvert(gamma));
-		return 0;
+        return SkScalarPow(luma, SkScalarInvert(gamma));
     }
 };
 

@@ -196,6 +196,10 @@ BYTE* D2DSetup::ApplyLUT(BYTE* aRGB, int width, int height)
 	const uint8_t* tableG = this->fPreBlend.fG;
 	const uint8_t* tableB = this->fPreBlend.fB;
 
+	for (U8CPU i = 0; i < 255; i++) {
+		printf("Previous Component: %u, lut value: %u\n", i, tableR[i]);
+	}
+
 	for (int y = 0; y < height; y++) {
 		int sourceHeight = y * width * 3;	// expect 3 bytes per pixel
 		int destHeight = y * width * 4;		// convert to 4 bytes per pixel to add alpha opaque channel
@@ -211,6 +215,11 @@ BYTE* D2DSetup::ApplyLUT(BYTE* aRGB, int width, int height)
 			r = sk_apply_lut_if<true>(r, tableR);
 			g = sk_apply_lut_if<true>(g, tableG);
 			b = sk_apply_lut_if<true>(b, tableB);
+
+			// Blend to draw black text on white
+			r = Blend(0, 0xFF, r);
+			g = Blend(0, 0xFF, g);
+			b = Blend(0, 0xFF, b);
 
 			bitmapImage[destIndex] = r;
 			bitmapImage[destIndex + 1] = g;
@@ -389,9 +398,13 @@ SkMaskGamma::PreBlend D2DSetup::CreateLUT()
 	const float contrast = 0.5;
 	const float paintGamma = 1.8;
 	const float deviceGamma = 1.8;
-	SkMaskGamma gamma(contrast, paintGamma, deviceGamma);
+	SkMaskGamma* gamma = new SkMaskGamma(contrast, paintGamma, deviceGamma);
+
+	for (U8CPU i = 0; i < 255; i++) {
+		printf("Previous Component: %u, lut value: %u\n", i, gamma->fGammaTables[0][i]);
+	}
 
 	// Gecko is always setting the preblend to black background.
 	SkColor blackLuminanceColor = SkColorSetARGBInline(255, 0, 0, 0);
-	return gamma.preBlend(blackLuminanceColor);
+	return gamma->preBlend(blackLuminanceColor);
 }

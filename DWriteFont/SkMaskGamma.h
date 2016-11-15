@@ -22,12 +22,14 @@ static inline float sk_float_pow(float base, float exp) {
 	return powf(base, exp);
 }
 
+#define SK_Scalar1                  1.0f
 #define sk_float_floor(x)       floorf(x)
 #define sk_float_round2int(x)   (int)sk_float_floor((x) + 0.5f)
 #define SkIntToScalar(x)        static_cast<SkScalar>(x)
 #define SkScalarRoundToInt(x)   sk_float_round2int(x)
 #define SkScalarToFloat(x)      static_cast<float>(x)
 #define SkScalarPow(b, e)       sk_float_pow(b, e)
+#define SkScalarInvert(x)       (SK_Scalar1 / (x))
 
 template <typename D, typename S> D SkTo(S s) {
 	return static_cast<D>(s);
@@ -202,7 +204,6 @@ public:
         return (const uint8_t*) fGammaTables;
     }
 
-private:
     static const int MAX_LUM_BITS =
           B_LUM_BITS > (R_LUM_BITS > G_LUM_BITS ? R_LUM_BITS : G_LUM_BITS)
         ? B_LUM_BITS : (R_LUM_BITS > G_LUM_BITS ? R_LUM_BITS : G_LUM_BITS);
