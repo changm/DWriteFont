@@ -9,6 +9,7 @@
 #define SkMaskGamma_DEFINED
 
 #include <stdint.h>
+#include <math.h>
 
 typedef float SkScalar;
 typedef uint32_t SkColor;
@@ -55,6 +56,13 @@ template <typename D, typename S> D SkTo(S s) {
 #define SkColorGetG(color)      (((color) >>  8) & 0xFF)
 /** return the blue byte from a SkColor value */
 #define SkColorGetB(color)      (((color) >>  0) & 0xFF)
+
+/** Return a SkColor value from 8 bit component values
+*/
+static inline SkColor SkColorSetARGBInline(U8CPU a, U8CPU r, U8CPU g, U8CPU b)
+{
+	return (a << 24) | (r << 16) | (g << 8) | (b << 0);
+}
 
 /**
  * SkColorSpaceLuminance is used to convert luminances to and from linear and
@@ -133,7 +141,7 @@ void SkTMaskGamma_build_correcting_lut(uint8_t table[256], U8CPU srcI, SkScalar 
  * @param G The number of luminance bits to use [1, 8] from the green channel.
  * @param B The number of luminance bits to use [1, 8] from the blue channel.
  */
-template <int R_LUM_BITS, int G_LUM_BITS, int B_LUM_BITS> class SkTMaskGamma : public SkRefCnt {
+template <int R_LUM_BITS, int G_LUM_BITS, int B_LUM_BITS> class SkTMaskGamma {
 
 public:
 
@@ -216,7 +224,7 @@ template <int R_LUM_BITS, int G_LUM_BITS, int B_LUM_BITS> class SkTMaskPreBlend 
 private:
     SkTMaskPreBlend(const SkTMaskGamma<R_LUM_BITS, G_LUM_BITS, B_LUM_BITS>* parent,
                     const uint8_t* r, const uint8_t* g, const uint8_t* b)
-    : fParent(SkSafeRef(parent)), fR(r), fG(g), fB(b) { }
+    : fParent(*parent), fR(r), fG(g), fB(b) { }
 
     const SkTMaskGamma<R_LUM_BITS, G_LUM_BITS, B_LUM_BITS> fParent;
     friend class SkTMaskGamma<R_LUM_BITS, G_LUM_BITS, B_LUM_BITS>;
@@ -229,7 +237,7 @@ public:
      * when return value optimization is enabled.
      */
     SkTMaskPreBlend(const SkTMaskPreBlend<R_LUM_BITS, G_LUM_BITS, B_LUM_BITS>& that)
-    : fParent(SkSafeRef(that.fParent.get())), fR(that.fR), fG(that.fG), fB(that.fB) { }
+    : fParent(that.fParent), fR(that.fR), fG(that.fG), fB(that.fB) { }
 
     ~SkTMaskPreBlend() { }
 
