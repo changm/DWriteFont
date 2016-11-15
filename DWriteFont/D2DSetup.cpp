@@ -237,8 +237,8 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool use
 void D2DSetup::DrawWithMask()
 {
 	IDWriteFontFace* fontFace = GetFontFace();
-	const int xAxis = 163;
-	const int yAxis = 280;
+	const int xAxis = 0;
+	const int yAxis = 100;
 
 	WCHAR bitmapMessage[] = L"Hello World Bitmap";
 	DWRITE_GLYPH_RUN bitmapGlyphRun;
@@ -289,8 +289,8 @@ void D2DSetup::Init()
 	hr = mDwriteFactory->CreateTextFormat(L"Arial", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, mFontSize, L"", &mTextFormat);
 	assert(hr == S_OK);
 
-	mTextFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
-	mTextFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+	mTextFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+	mTextFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
 
 	hr = mRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black, 1.0f), &mBlackBrush);
 	hr = mRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White, 1.0f), &mWhiteBrush);
