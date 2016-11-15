@@ -249,6 +249,11 @@ void D2DSetup::DrawWithMask()
 	DWRITE_GLYPH_RUN lutGlyphRun;
 	CreateGlyphRunAnalysis(lutGlyphRun, fontFace, lutMessage);
 	DrawWithBitmap(lutGlyphRun, xAxis, yAxis - 20, true);
+
+	WCHAR d2dMessage[] = L"Hello World D2D";
+	DWRITE_GLYPH_RUN d2dGlyphRun;
+	CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
+	DrawTextWithD2D(d2dGlyphRun, xAxis, yAxis - 40, mDefaultParams);
 }
 
 static
