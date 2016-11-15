@@ -97,9 +97,9 @@ IDWriteFontFace* D2DSetup::GetFontFace()
 	return fontFace;
 }
 
-void D2DSetup::CreateGlyphRunAnalysis(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontFace)
+void D2DSetup::CreateGlyphRunAnalysis(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontFace, WCHAR message[])
 {
-	static const WCHAR message[] = L"Hello World Glyph";
+	//static const WCHAR message[] = L"Hello World Glyph";
 	const int length = wcslen(message);
 
 	UINT16* glyphIndices = new UINT16[length];
@@ -127,7 +127,7 @@ void D2DSetup::CreateGlyphRunAnalysis(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFac
 		offset[i].ascenderOffset = 0;
 	}
 
-	glyphRun.glyphCount = length - 1;
+	glyphRun.glyphCount = length;
 	glyphRun.glyphAdvances = advances;
 	glyphRun.fontFace = fontFace;
 	glyphRun.fontEmSize = mFontSize;
@@ -195,10 +195,6 @@ BYTE* D2DSetup::ApplyLUT(BYTE* aRGB, int width, int height)
 	const uint8_t* tableR = this->fPreBlend.fR;
 	const uint8_t* tableG = this->fPreBlend.fG;
 	const uint8_t* tableB = this->fPreBlend.fB;
-
-	for (U8CPU i = 0; i < 255; i++) {
-		printf("Previous Component: %u, lut value: %u\n", i, tableR[i]);
-	}
 
 	for (int y = 0; y < height; y++) {
 		int sourceHeight = y * width * 3;	// expect 3 bytes per pixel
@@ -274,14 +270,18 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
 void D2DSetup::DrawWithMask()
 {
 	IDWriteFontFace* fontFace = GetFontFace();
-	DWRITE_GLYPH_RUN glyphRun;
-	CreateGlyphRunAnalysis(glyphRun, fontFace);
-
 	const int xAxis = 163;
 	const int yAxis = 280;
-	//DrawWithBitmap(glyphRun, xAxis, yAxis);
-	DrawWithLUT(glyphRun, xAxis, yAxis);
-	//DrawTextWithD2D(glyphRun, xAxis, yAxis + 20, mDefaultParams);
+
+	WCHAR bitmapMessage[] = L"Hello World Bitmap";
+	DWRITE_GLYPH_RUN bitmapGlyphRun;
+	CreateGlyphRunAnalysis(bitmapGlyphRun, fontFace, bitmapMessage);
+	DrawWithBitmap(bitmapGlyphRun, xAxis, yAxis);
+
+	WCHAR lutMessage[] = L"Hello World LUT";
+	DWRITE_GLYPH_RUN lutGlyphRun;
+	CreateGlyphRunAnalysis(lutGlyphRun, fontFace, lutMessage);
+	DrawWithBitmap(lutGlyphRun, xAxis, yAxis - 20);
 }
 
 void D2DSetup::DrawWithLUT(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
