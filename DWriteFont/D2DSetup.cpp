@@ -314,6 +314,11 @@ void D2DSetup::Init()
 
 	IDWriteRenderingParams* monitorParams;
 	mDwriteFactory->CreateMonitorRenderingParams(GetPrimaryMonitorHandle(), &monitorParams);
+
+	float dpiX = 0;
+	float dpiY = 0;
+	mRenderTarget->GetDpi(&dpiX, &dpiY);
+	printf("DPI x: %f, y: %f\n", dpiX, dpiY);
 }
 
 SkMaskGamma::PreBlend D2DSetup::CreateLUT()
