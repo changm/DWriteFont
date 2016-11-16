@@ -332,5 +332,6 @@ SkMaskGamma::PreBlend D2DSetup::CreateLUT()
 
 	// Gecko is always setting the preblend to black background.
 	SkColor blackLuminanceColor = SkColorSetARGBInline(255, 0, 0, 0);
+	SkColor mozillaColor = SkColorSetARGBInline(255, 0x40, 0x40, 0x40);
 	return gamma->preBlend(blackLuminanceColor);
 }
