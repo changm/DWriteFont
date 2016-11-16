@@ -51,11 +51,12 @@ private:
 	IDWriteTextFormat* mTextFormat;
 	ID2D1SolidColorBrush* mBlackBrush;
 	ID2D1SolidColorBrush* mWhiteBrush;
+	ID2D1SolidColorBrush* mDarkBlackBrush;
 	ID2D1SolidColorBrush* mTransparentBlackBrush;
 
 	IDWriteRenderingParams* mCustomParams;
 	IDWriteRenderingParams* mDefaultParams;
-	int mFontSize = 18;
+	int mFontSize = 12;
 
 	SkMaskGamma::PreBlend fPreBlend;
 };

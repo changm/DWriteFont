@@ -36,7 +36,7 @@ void D2DSetup::DrawText()
 		ARRAYSIZE(message) - 1,
 		mTextFormat,
 		D2D1::RectF(0, 100, 500, 500),
-		mBlackBrush);
+		mDarkBlackBrush);
 
 	mRenderTarget->EndDraw();
 }
@@ -113,7 +113,7 @@ void D2DSetup::CreateGlyphRunAnalysis(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFac
 
 	fontFace->GetDesignGlyphMetrics(glyphIndices, length, metrics);
 	for (int i = 0; i < length; i++) {
-		advances[i] = metrics[i].advanceWidth / 112;
+		advances[i] = metrics[i].advanceWidth / 152;
 		//printf("Metrics advance width: %d\n", metrics[i].advanceWidth);
 		//printf("Advance is: %f\n", advances[i]);
 		// 15 is about right but still wrong. The advances from GetDesignGlyphMetrics are too far apart....
@@ -146,7 +146,7 @@ void D2DSetup::DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y, IDWrite
 	mRenderTarget->SetTextRenderingParams(aParams);
 	mRenderTarget->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
 
-	mRenderTarget->DrawGlyphRun(origin, &glyphRun, mBlackBrush);
+	mRenderTarget->DrawGlyphRun(origin, &glyphRun, mDarkBlackBrush);
 	mRenderTarget->EndDraw();
 }
 
@@ -181,9 +181,10 @@ BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT)
 			}
 
 			// Blend to draw black text on white
-			r = Blend(0, 0xFF, r);
-			g = Blend(0, 0xFF, g);
-			b = Blend(0, 0xFF, b);
+			// Mozilla's color is 0x404040
+			r = Blend(0x40, 0xFF, r);
+			g = Blend(0x40, 0xFF, g);
+			b = Blend(0x40, 0xFF, b);
 
 			bitmapImage[destIndex] = r;
 			bitmapImage[destIndex + 1] = g;
@@ -292,6 +293,7 @@ void D2DSetup::Init()
 	mTextFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
 	mTextFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
 
+	hr = mRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x404040, 1.0f), &mDarkBlackBrush);
 	hr = mRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black, 1.0f), &mBlackBrush);
 	hr = mRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White, 1.0f), &mWhiteBrush);
 	hr = mRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black, 0.0f), &mTransparentBlackBrush);
