@@ -36,7 +36,7 @@ void D2DSetup::DrawText()
 		ARRAYSIZE(message) - 1,
 		mTextFormat,
 		D2D1::RectF(0, 100, 500, 500),
-		mDarkBlackBrush);
+		mBlackBrush);
 
 	mRenderTarget->EndDraw();
 }
@@ -61,6 +61,7 @@ void D2DSetup::PrintFonts(IDWriteFontCollection* aFontCollection)
 
 		wchar_t fontName[256];
 		familyName->GetString(index, fontName, length + 1);
+		wprintf(L"Font name: %s\n", fontName);
 	}
 }
 
@@ -103,21 +104,23 @@ void D2DSetup::CreateGlyphRunAnalysis(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFac
 
 	UINT16* glyphIndices = new UINT16[length];
 	UINT32* codePoints = new UINT32[length];
-	DWRITE_GLYPH_METRICS* metrics = new DWRITE_GLYPH_METRICS[length];
+	DWRITE_GLYPH_METRICS* glyphMetrics = new DWRITE_GLYPH_METRICS[length];
 	FLOAT* advances = new FLOAT[length];
 
 	for (int i = 0; i < length; i++) {
 		codePoints[i] = message[i];
 	}
-	fontFace->GetGlyphIndicesW(codePoints, length, glyphIndices);
 
-	fontFace->GetDesignGlyphMetrics(glyphIndices, length, metrics);
+	fontFace->GetGlyphIndicesW(codePoints, length, glyphIndices);
+	fontFace->GetDesignGlyphMetrics(glyphIndices, length, glyphMetrics);
+
+	DWRITE_FONT_METRICS fontMetrics;
+	fontFace->GetMetrics(&fontMetrics);
+
 	for (int i = 0; i < length; i++) {
-		advances[i] = metrics[i].advanceWidth / 152;
-		//printf("Metrics advance width: %d\n", metrics[i].advanceWidth);
-		//printf("Advance is: %f\n", advances[i]);
-		// 15 is about right but still wrong. The advances from GetDesignGlyphMetrics are too far apart....
-		//advances[i] = 15;
+		int advance = glyphMetrics[i].advanceWidth;
+		float realAdvance = ((float) advance * mFontSize) / fontMetrics.designUnitsPerEm;
+		advances[i] = realAdvance;
 	}
 
 	DWRITE_GLYPH_OFFSET* offset = new DWRITE_GLYPH_OFFSET[length];
@@ -146,13 +149,13 @@ void D2DSetup::DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y, IDWrite
 	mRenderTarget->SetTextRenderingParams(aParams);
 	mRenderTarget->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
 
-	mRenderTarget->DrawGlyphRun(origin, &glyphRun, mDarkBlackBrush);
+	mRenderTarget->DrawGlyphRun(origin, &glyphRun, mBlackBrush);
 	mRenderTarget->EndDraw();
 }
 
 // Converts the given rgb 3x1 cleartype alpha mask to the required RGBA_UNOM as required by bitmaps
 // Also blends to draw black text on white
-BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT)
+BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bool convert)
 {
 	int size = width * height * 4;
 	BYTE* bitmapImage = (BYTE*)malloc(size);
@@ -180,11 +183,24 @@ BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT)
 				b = sk_apply_lut_if<true>(b, tableB);
 			}
 
+			if (convert) {
+				// Taken from http://searchfox.org/mozilla-central/source/gfx/skia/skia/include/core/SkColorPriv.h#654
+				BYTE shortR = r >> 3;
+				BYTE shortG = g >> 2;
+				BYTE shortB = b >> 3;
+
+				BYTE oldR = r;
+
+				r = shortR << 3;
+				g = shortG << 2;
+				b = shortB << 3;
+			}
+
 			// Blend to draw black text on white
 			// Mozilla's color is 0x404040
-			r = Blend(0x40, 0xFF, r);
-			g = Blend(0x40, 0xFF, g);
-			b = Blend(0x40, 0xFF, b);
+			r = Blend(0x00, 0xFF, r);
+			g = Blend(0x00, 0xFF, g);
+			b = Blend(0x00, 0xFF, b);
 
 			bitmapImage[destIndex] = r;
 			bitmapImage[destIndex + 1] = g;
@@ -195,7 +211,7 @@ BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT)
 	return bitmapImage;
 }
 
-void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool useLUT)
+void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool useLUT, bool convert)
 {
 	mRenderTarget->BeginDraw();
 
@@ -214,7 +230,21 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool use
 	HRESULT hr = analysis->CreateAlphaTexture(DWRITE_TEXTURE_TYPE::DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds, image, bufferSize);
 	assert(hr == S_OK);
 
-	BYTE* bitmapImage = ConvertToRGBA(image, width, height, useLUT);
+	/*
+	for (int i = 0; i < (int)height; i++) {
+		for (int j = 0; j < (int)width * 3; j += 3) {
+			int row = i * width;
+			printf("(%u,%u,%u) ",
+				image[row + j],
+				image[row + j + 1],
+				image[row + j + 2]
+			);
+		}
+		printf("\n\n");
+	}
+	*/
+
+	BYTE* bitmapImage = ConvertToRGBA(image, width, height, useLUT, convert);
 
 	// Now try to make a bitmap
 	ID2D1Bitmap* bitmap;
@@ -241,10 +271,17 @@ void D2DSetup::DrawWithMask()
 	const int xAxis = 0;
 	const int yAxis = 100;
 
+	/*
 	WCHAR bitmapMessage[] = L"Hello World Bitmap";
 	DWRITE_GLYPH_RUN bitmapGlyphRun;
 	CreateGlyphRunAnalysis(bitmapGlyphRun, fontFace, bitmapMessage);
 	DrawWithBitmap(bitmapGlyphRun, xAxis, yAxis, false);
+	*/
+
+	WCHAR bitmapMessage[] = L"Hello World LUT Trim";
+	DWRITE_GLYPH_RUN bitmapGlyphRun;
+	CreateGlyphRunAnalysis(bitmapGlyphRun, fontFace, bitmapMessage);
+	DrawWithBitmap(bitmapGlyphRun, xAxis, yAxis, true, true);
 
 	WCHAR lutMessage[] = L"Hello World LUT";
 	DWRITE_GLYPH_RUN lutGlyphRun;
@@ -255,6 +292,34 @@ void D2DSetup::DrawWithMask()
 	DWRITE_GLYPH_RUN d2dGlyphRun;
 	CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
 	DrawTextWithD2D(d2dGlyphRun, xAxis, yAxis - 40, mDefaultParams);
+}
+
+void D2DSetup::DrawSkia()
+{
+	int x = 100;
+	int y = 100;
+
+	IDWriteFontFace* fontFace = GetFontFace();
+
+	WCHAR message[] = L"Hello World";
+	DWRITE_GLYPH_RUN glyphRun;
+	CreateGlyphRunAnalysis(glyphRun, fontFace, message);
+
+
+	//DrawWithBitmap(glyphRun, x, y - 60, true, true);
+	//DrawWithBitmap(glyphRun, x, y - 40, true);
+	DrawWithBitmap(glyphRun, x, y - 20, false);
+	//DrawTextWithD2D(glyphRun, x, y, mDefaultParams);
+
+	/*
+	mRenderTarget->BeginDraw();
+	mRenderTarget->DrawTextW(message,
+		ARRAYSIZE(message) - 1,
+		mTextFormat,
+		D2D1::RectF(x, y, 100, 100),
+		mBlackBrush);
+	mRenderTarget->EndDraw();
+	*/
 }
 
 static
@@ -287,6 +352,8 @@ void D2DSetup::Init()
 	hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), reinterpret_cast<IUnknown**>(&mDwriteFactory));
 	assert(hr == S_OK);
 
+	mFontSize = 14;
+	printf("Font size is: %d\n", mFontSize);
 	hr = mDwriteFactory->CreateTextFormat(L"Arial", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, mFontSize, L"", &mTextFormat);
 	assert(hr == S_OK);
 
@@ -332,6 +399,7 @@ SkMaskGamma::PreBlend D2DSetup::CreateLUT()
 
 	// Gecko is always setting the preblend to black background.
 	SkColor blackLuminanceColor = SkColorSetARGBInline(255, 0, 0, 0);
+	SkColor whiteLuminance = SkColorSetARGBInline(255, 255, 255, 255);
 	SkColor mozillaColor = SkColorSetARGBInline(255, 0x40, 0x40, 0x40);
 	return gamma->preBlend(blackLuminanceColor);
 }
