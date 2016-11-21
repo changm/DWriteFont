@@ -27,15 +27,15 @@ void D2DSetup::Clear()
 	mRenderTarget->EndDraw();
 }
 
-void D2DSetup::DrawText()
+void D2DSetup::DrawText(int x, int y, WCHAR message[])
 {
-	static const WCHAR message[] = L"Hello World DrawText";
+	const int length = wcslen(message);
 	mRenderTarget->BeginDraw();
 
 	mRenderTarget->DrawTextW(message,
-		ARRAYSIZE(message) - 1,
+		length,
 		mTextFormat,
-		D2D1::RectF(0, 100, 500, 500),
+		D2D1::RectF(x, y, 500, 500),
 		mBlackBrush);
 
 	mRenderTarget->EndDraw();
@@ -278,12 +278,12 @@ void D2DSetup::DrawWithMask()
 	DrawWithBitmap(bitmapGlyphRun, xAxis, yAxis, false);
 	*/
 
-	WCHAR bitmapMessage[] = L"Hello World LUT Trim";
+	WCHAR bitmapMessage[] = L"Hello World LUT 565";
 	DWRITE_GLYPH_RUN bitmapGlyphRun;
 	CreateGlyphRunAnalysis(bitmapGlyphRun, fontFace, bitmapMessage);
 	DrawWithBitmap(bitmapGlyphRun, xAxis, yAxis, true, true);
 
-	WCHAR lutMessage[] = L"Hello World LUT";
+	WCHAR lutMessage[] = L"Hello World LUT 888";
 	DWRITE_GLYPH_RUN lutGlyphRun;
 	CreateGlyphRunAnalysis(lutGlyphRun, fontFace, lutMessage);
 	DrawWithBitmap(lutGlyphRun, xAxis, yAxis - 20, true);
@@ -292,34 +292,9 @@ void D2DSetup::DrawWithMask()
 	DWRITE_GLYPH_RUN d2dGlyphRun;
 	CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
 	DrawTextWithD2D(d2dGlyphRun, xAxis, yAxis - 40, mDefaultParams);
-}
 
-void D2DSetup::DrawSkia()
-{
-	int x = 100;
-	int y = 100;
-
-	IDWriteFontFace* fontFace = GetFontFace();
-
-	WCHAR message[] = L"Hello World";
-	DWRITE_GLYPH_RUN glyphRun;
-	CreateGlyphRunAnalysis(glyphRun, fontFace, message);
-
-
-	//DrawWithBitmap(glyphRun, x, y - 60, true, true);
-	//DrawWithBitmap(glyphRun, x, y - 40, true);
-	DrawWithBitmap(glyphRun, x, y - 20, false);
-	//DrawTextWithD2D(glyphRun, x, y, mDefaultParams);
-
-	/*
-	mRenderTarget->BeginDraw();
-	mRenderTarget->DrawTextW(message,
-		ARRAYSIZE(message) - 1,
-		mTextFormat,
-		D2D1::RectF(x, y, 100, 100),
-		mBlackBrush);
-	mRenderTarget->EndDraw();
-	*/
+	WCHAR drawTextDirect[] = L"Hello World DrawTextDirect";
+	DrawText(xAxis, yAxis + 5, drawTextDirect);
 }
 
 static

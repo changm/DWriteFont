@@ -26,10 +26,9 @@ public:
 
 	~D2DSetup();
 
-	void DrawText();
+	void DrawText(int x, int y, WCHAR message[]);
 	void Init();
 	void DrawWithMask();
-	void DrawSkia();
 	void PrintFonts(IDWriteFontCollection* aFontCollection);
 	void Clear();
 
