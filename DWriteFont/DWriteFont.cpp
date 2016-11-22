@@ -128,7 +128,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    ShowWindow(hWnd, nCmdShow);
    UpdateWindow(hWnd);
-   CreateTimers(hWnd);
+   //CreateTimers(hWnd);
    return TRUE;
 }
 

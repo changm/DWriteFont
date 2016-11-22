@@ -292,19 +292,29 @@ void D2DSetup::AlternateText(int count) {
 void D2DSetup::DrawWithMask()
 {
 	IDWriteFontFace* fontFace = GetFontFace();
-	const int xAxis = 100;
-	const int yAxis = 100;
+	const int x = 100;
+	const int y = 100;
 
 	//WCHAR d2dMessage[] = L"reddit: the front page of the internet D2D";
 	WCHAR d2dMessage[] = L"L D2D";
 	DWRITE_GLYPH_RUN d2dGlyphRun;
 	CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
-	DrawTextWithD2D(d2dGlyphRun, xAxis, yAxis - 40, mDefaultParams);
+	DrawTextWithD2D(d2dGlyphRun, x, y - 60, mDefaultParams);
 
 	WCHAR gdiMessage[] = L"L GDI";
 	DWRITE_GLYPH_RUN gdiGlyphRun;
 	CreateGlyphRunAnalysis(gdiGlyphRun, fontFace, gdiMessage);
-	DrawTextWithD2D(gdiGlyphRun, xAxis, yAxis - 20, mGDIParams);
+	DrawTextWithD2D(gdiGlyphRun, x, y - 40, mGDIParams);
+
+	WCHAR gdiLUT[] = L"L GDI LUT";
+	DWRITE_GLYPH_RUN gdiLutRun;
+	CreateGlyphRunAnalysis(gdiLutRun, fontFace, gdiLUT);
+	DrawWithBitmap(gdiLutRun, x, y - 20, true, true, DWRITE_RENDERING_MODE_CLEARTYPE_GDI_CLASSIC);
+	
+	WCHAR d2dLUT[] = L"L LUT";
+	DWRITE_GLYPH_RUN d2dLutRun;
+	CreateGlyphRunAnalysis(d2dLutRun, fontFace, d2dLUT);
+	DrawWithBitmap(d2dLutRun, x, y, mDefaultParams);
 }
 
 static
