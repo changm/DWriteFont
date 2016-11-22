@@ -29,6 +29,7 @@ public:
 	void DrawText(int x, int y, WCHAR message[]);
 	void Init();
 	void DrawWithMask();
+	void AlternateText(int count);
 	void PrintFonts(IDWriteFontCollection* aFontCollection);
 	void Clear();
 
@@ -39,7 +40,9 @@ private:
 	void DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y, IDWriteRenderingParams* aParams);
 	void CreateGlyphRunAnalysis(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontFace, WCHAR message[]);
 	BYTE* ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bool convert = false);
-	void DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool useLUT, bool convert = false);
+	void DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool useLUT, bool convert = false,
+						DWRITE_RENDERING_MODE aRenderingMode = DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC,
+						DWRITE_MEASURING_MODE aMode = DWRITE_MEASURING_MODE_NATURAL);
 
 	HWND mHWND;
 	HDC mHDC;
@@ -55,6 +58,7 @@ private:
 
 	IDWriteRenderingParams* mCustomParams;
 	IDWriteRenderingParams* mDefaultParams;
+	IDWriteRenderingParams* mGDIParams;
 	int mFontSize;
 
 	SkMaskGamma::PreBlend fPreBlend;

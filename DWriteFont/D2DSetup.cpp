@@ -35,7 +35,7 @@ void D2DSetup::DrawText(int x, int y, WCHAR message[])
 	mRenderTarget->DrawTextW(message,
 		length,
 		mTextFormat,
-		D2D1::RectF(x, y, 500, 500),
+		D2D1::RectF(x, y - 17, 1000, 1000),
 		mBlackBrush);
 
 	mRenderTarget->EndDraw();
@@ -148,6 +148,7 @@ void D2DSetup::DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y, IDWrite
 	mRenderTarget->BeginDraw();
 	mRenderTarget->SetTextRenderingParams(aParams);
 	mRenderTarget->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
+	mRenderTarget->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
 
 	mRenderTarget->DrawGlyphRun(origin, &glyphRun, mBlackBrush);
 	mRenderTarget->EndDraw();
@@ -211,13 +212,13 @@ BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bo
 	return bitmapImage;
 }
 
-void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool useLUT, bool convert)
+void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool useLUT, bool convert, DWRITE_RENDERING_MODE aRenderMode, DWRITE_MEASURING_MODE aMeasureMode)
 {
 	mRenderTarget->BeginDraw();
 
 	IDWriteGlyphRunAnalysis* analysis;
 	// The 1.0f could be pretty bad here since it's not accounting for DPI, every reference in gecko uses 1.0
-	mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL_SYMMETRIC, DWRITE_MEASURING_MODE_NATURAL, 0.0f, 0.0f, &analysis);
+	mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, aRenderMode, aMeasureMode, 0.0f, 0.0f, &analysis);
 
 	RECT bounds;
 	analysis->GetAlphaTextureBounds(DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
@@ -265,36 +266,45 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool use
 	mRenderTarget->EndDraw();
 }
 
+void D2DSetup::AlternateText(int count) {
+	IDWriteFontFace* fontFace = GetFontFace();
+	int x = 100; int y = 100;
+	switch (count % 2) {
+	case 0:
+	{
+		WCHAR d2dMessage[] = L"L D2D";
+		DWRITE_GLYPH_RUN d2dGlyphRun;
+		CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
+		DrawTextWithD2D(d2dGlyphRun, x, y, mDefaultParams);
+		break;
+	}
+	case 1:
+	{
+		WCHAR gdiMessage[] = L"L GDI";
+		DWRITE_GLYPH_RUN gdiGlyphRun;
+		CreateGlyphRunAnalysis(gdiGlyphRun, fontFace, gdiMessage);
+		DrawTextWithD2D(gdiGlyphRun, x, y, mGDIParams);
+		break;
+	}
+	} // end switch
+}
+
 void D2DSetup::DrawWithMask()
 {
 	IDWriteFontFace* fontFace = GetFontFace();
-	const int xAxis = 0;
+	const int xAxis = 100;
 	const int yAxis = 100;
 
-	/*
-	WCHAR bitmapMessage[] = L"Hello World Bitmap";
-	DWRITE_GLYPH_RUN bitmapGlyphRun;
-	CreateGlyphRunAnalysis(bitmapGlyphRun, fontFace, bitmapMessage);
-	DrawWithBitmap(bitmapGlyphRun, xAxis, yAxis, false);
-	*/
-
-	WCHAR bitmapMessage[] = L"Hello World LUT 565";
-	DWRITE_GLYPH_RUN bitmapGlyphRun;
-	CreateGlyphRunAnalysis(bitmapGlyphRun, fontFace, bitmapMessage);
-	DrawWithBitmap(bitmapGlyphRun, xAxis, yAxis, true, true);
-
-	WCHAR lutMessage[] = L"Hello World LUT 888";
-	DWRITE_GLYPH_RUN lutGlyphRun;
-	CreateGlyphRunAnalysis(lutGlyphRun, fontFace, lutMessage);
-	DrawWithBitmap(lutGlyphRun, xAxis, yAxis - 20, true);
-
-	WCHAR d2dMessage[] = L"Hello World D2D";
+	//WCHAR d2dMessage[] = L"reddit: the front page of the internet D2D";
+	WCHAR d2dMessage[] = L"L D2D";
 	DWRITE_GLYPH_RUN d2dGlyphRun;
 	CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
 	DrawTextWithD2D(d2dGlyphRun, xAxis, yAxis - 40, mDefaultParams);
 
-	WCHAR drawTextDirect[] = L"Hello World DrawTextDirect";
-	DrawText(xAxis, yAxis + 5, drawTextDirect);
+	WCHAR gdiMessage[] = L"L GDI";
+	DWRITE_GLYPH_RUN gdiGlyphRun;
+	CreateGlyphRunAnalysis(gdiGlyphRun, fontFace, gdiMessage);
+	DrawTextWithD2D(gdiGlyphRun, xAxis, yAxis - 20, mGDIParams);
 }
 
 static
@@ -355,6 +365,9 @@ void D2DSetup::Init()
 
 	mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, mDefaultParams->GetClearTypeLevel(), mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC, &mCustomParams);
 	printf("Custom params is: %f\n", mCustomParams->GetEnhancedContrast());
+
+	DWRITE_PIXEL_GEOMETRY geometry = mDefaultParams->GetPixelGeometry();
+	mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, mDefaultParams->GetClearTypeLevel(), mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_GDI_CLASSIC, &mGDIParams);
 
 	IDWriteRenderingParams* monitorParams;
 	mDwriteFactory->CreateMonitorRenderingParams(GetPrimaryMonitorHandle(), &monitorParams);

@@ -95,6 +95,12 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     return RegisterClassExW(&wcex);
 }
 
+UINT_PTR RESET_TIMER = 1;
+void CreateTimers(HWND hWnd)
+{
+	SetTimer(hWnd, RESET_TIMER, 1500, NULL);
+}
+
 //
 //   FUNCTION: InitInstance(HINSTANCE, int)
 //
@@ -122,16 +128,22 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    ShowWindow(hWnd, nCmdShow);
    UpdateWindow(hWnd);
-
+   CreateTimers(hWnd);
    return TRUE;
 }
 
 static void PaintText(HWND aHWND, HDC aHDC)
 {
-	printf("Painting text\n");
 	D2DSetup d2d(aHWND, aHDC);
 	d2d.Clear();
 	d2d.DrawWithMask();
+}
+
+static void AlternateText(HWND aHWND, HDC aHDC, int count)
+{
+	D2DSetup d2d(aHWND, aHDC);
+	d2d.Clear();
+	d2d.AlternateText(count);
 }
 
 //
@@ -175,8 +187,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         }
         break;
     case WM_DESTROY:
-        PostQuitMessage(0);
-        break;
+	{
+		PostQuitMessage(0);
+		break;
+	}
+	case WM_TIMER:
+	{
+		static int count = 0;
+		printf("Hitting a timer %d\n", count++);
+		PAINTSTRUCT ps;
+		HDC hdc = BeginPaint(hWnd, &ps);
+		// TODO: Add any drawing code that uses hdc here...
+		AlternateText(hWnd, hdc, count);
+		EndPaint(hWnd, &ps);
+		break;
+	}
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
