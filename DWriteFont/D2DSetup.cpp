@@ -304,22 +304,21 @@ void D2DSetup::DrawWithMask()
 	CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
 	DrawTextWithD2D(d2dGlyphRun, x, y, mDefaultParams);
 
-	/*
-	WCHAR d2dLUT[] = L"U LUT";
+	WCHAR d2dLUT[] = L"U D2D LUT NATURAL_RENDERING_MODE_SYMMETRIC";
 	DWRITE_GLYPH_RUN d2dLutRun;
 	CreateGlyphRunAnalysis(d2dLutRun, fontFace, d2dLUT);
-	DrawWithBitmap(d2dLutRun, x, y, true, false);
+	DrawWithBitmap(d2dLutRun, x, y - 40, true, true);
 
-	WCHAR d2dLutChop[] = L"U D No LUT";
+	WCHAR d2dLutChop[] = L"U D2D LUT NATURAL_NO_SYMMETRIC";
 	DWRITE_GLYPH_RUN d2dLutChopRun;
 	CreateGlyphRunAnalysis(d2dLutChopRun, fontFace, d2dLutChop);
-	DrawWithBitmap(d2dLutChopRun, x, y - 20, false, false);
-	*/
+	DrawWithBitmap(d2dLutChopRun, x, y - 20, true, true, DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL);
 
-	WCHAR test[] = L"U D LUT SYM";
-	DWRITE_GLYPH_RUN testRun;
-	CreateGlyphRunAnalysis(testRun, fontFace, test);
-	DrawWithBitmap(testRun, x, y + 20, false, false);
+	//WCHAR test[] = L"U D LUT SYM";
+	//DWRITE_GLYPH_RUN testRun;
+	//CreateGlyphRunAnalysis(testRun, fontFace, test);
+	//DrawWithBitmap(d2dGlyphRun, x, y + 20, true, true, DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL);
+	//DrawWithBitmap(d2dGlyphRun, x, y + 40, true, true);
 }
 
 static
