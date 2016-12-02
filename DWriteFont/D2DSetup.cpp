@@ -299,6 +299,14 @@ void D2DSetup::DrawWithMask()
 	const int x = 100;
 	const int y = 100;
 
+	DWRITE_RENDERING_MODE recommendedMode;
+	fontFace->GetRecommendedRenderingMode(mFontSize,
+		1.0f,
+		DWRITE_MEASURING_MODE_NATURAL, // We use this in gecko
+		mDefaultParams,
+		&recommendedMode);
+	printf("Recommended mode is: %d\n", recommendedMode);
+
 	WCHAR d2dMessage[] = L"U D2D";
 	DWRITE_GLYPH_RUN d2dGlyphRun;
 	CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
