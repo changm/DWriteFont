@@ -75,7 +75,7 @@ Blend(float src, float dst, float alpha) {
 
 IDWriteFontFace* D2DSetup::GetFontFace()
 {
-	static const WCHAR fontFamilyName[] = L"Arial";
+	static const WCHAR fontFamilyName[] = L"Georgia";
 
 	IDWriteFontCollection* systemFonts;
 	mDwriteFactory->GetSystemFontCollection(&systemFonts, TRUE);
@@ -218,7 +218,11 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool use
 
 	IDWriteGlyphRunAnalysis* analysis;
 	// The 1.0f could be pretty bad here since it's not accounting for DPI, every reference in gecko uses 1.0
-	mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, aRenderMode, aMeasureMode, 0.0f, 0.0f, &analysis);
+	HRESULT hr = mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, aRenderMode, aMeasureMode, 0.0f, 0.0f, &analysis);
+	if (hr != S_OK) {
+		printf("HResultis: %x\n", hr);
+		assert(hr == S_OK);
+	}
 
 	RECT bounds;
 	analysis->GetAlphaTextureBounds(DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
@@ -228,7 +232,7 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool use
 	int bufferSize = width * height * 3;
 	BYTE* image = (BYTE*)malloc(bufferSize);
 	memset(image, 0xFF, bufferSize);
-	HRESULT hr = analysis->CreateAlphaTexture(DWRITE_TEXTURE_TYPE::DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds, image, bufferSize);
+	hr = analysis->CreateAlphaTexture(DWRITE_TEXTURE_TYPE::DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds, image, bufferSize);
 	assert(hr == S_OK);
 
 	/*
@@ -272,18 +276,18 @@ void D2DSetup::AlternateText(int count) {
 	switch (count % 2) {
 	case 0:
 	{
-		WCHAR d2dMessage[] = L"L D2D";
-		DWRITE_GLYPH_RUN d2dGlyphRun;
-		CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
-		DrawTextWithD2D(d2dGlyphRun, x, y, mDefaultParams);
+		WCHAR d2dLutChop[] = L"Hello LUT Chop";
+		DWRITE_GLYPH_RUN d2dLutChopRun;
+		CreateGlyphRunAnalysis(d2dLutChopRun, fontFace, d2dLutChop);
+		DrawWithBitmap(d2dLutChopRun, x, y - 20, true, true);
 		break;
 	}
 	case 1:
 	{
-		WCHAR gdiMessage[] = L"L GDI";
-		DWRITE_GLYPH_RUN gdiGlyphRun;
-		CreateGlyphRunAnalysis(gdiGlyphRun, fontFace, gdiMessage);
-		DrawTextWithD2D(gdiGlyphRun, x, y, mGDIParams);
+		WCHAR d2dMessage[] = L"Hello D2D";
+		DWRITE_GLYPH_RUN d2dGlyphRun;
+		CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
+		DrawTextWithD2D(d2dGlyphRun, x, y - 40, mDefaultParams);
 		break;
 	}
 	} // end switch
@@ -295,26 +299,27 @@ void D2DSetup::DrawWithMask()
 	const int x = 100;
 	const int y = 100;
 
-	//WCHAR d2dMessage[] = L"reddit: the front page of the internet D2D";
-	WCHAR d2dMessage[] = L"L D2D";
+	WCHAR d2dMessage[] = L"U D2D";
 	DWRITE_GLYPH_RUN d2dGlyphRun;
 	CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
-	DrawTextWithD2D(d2dGlyphRun, x, y - 60, mDefaultParams);
+	DrawTextWithD2D(d2dGlyphRun, x, y, mDefaultParams);
 
-	WCHAR gdiMessage[] = L"L GDI";
-	DWRITE_GLYPH_RUN gdiGlyphRun;
-	CreateGlyphRunAnalysis(gdiGlyphRun, fontFace, gdiMessage);
-	DrawTextWithD2D(gdiGlyphRun, x, y - 40, mGDIParams);
-
-	WCHAR gdiLUT[] = L"L GDI LUT";
-	DWRITE_GLYPH_RUN gdiLutRun;
-	CreateGlyphRunAnalysis(gdiLutRun, fontFace, gdiLUT);
-	DrawWithBitmap(gdiLutRun, x, y - 20, true, true, DWRITE_RENDERING_MODE_CLEARTYPE_GDI_CLASSIC);
-	
-	WCHAR d2dLUT[] = L"L LUT";
+	/*
+	WCHAR d2dLUT[] = L"U LUT";
 	DWRITE_GLYPH_RUN d2dLutRun;
 	CreateGlyphRunAnalysis(d2dLutRun, fontFace, d2dLUT);
-	DrawWithBitmap(d2dLutRun, x, y, mDefaultParams);
+	DrawWithBitmap(d2dLutRun, x, y, true, false);
+
+	WCHAR d2dLutChop[] = L"U D No LUT";
+	DWRITE_GLYPH_RUN d2dLutChopRun;
+	CreateGlyphRunAnalysis(d2dLutChopRun, fontFace, d2dLutChop);
+	DrawWithBitmap(d2dLutChopRun, x, y - 20, false, false);
+	*/
+
+	WCHAR test[] = L"U D LUT SYM";
+	DWRITE_GLYPH_RUN testRun;
+	CreateGlyphRunAnalysis(testRun, fontFace, test);
+	DrawWithBitmap(testRun, x, y + 20, false, false);
 }
 
 static
@@ -349,7 +354,7 @@ void D2DSetup::Init()
 
 	mFontSize = 14;
 	printf("Font size is: %d\n", mFontSize);
-	hr = mDwriteFactory->CreateTextFormat(L"Arial", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, mFontSize, L"", &mTextFormat);
+	hr = mDwriteFactory->CreateTextFormat(L"Georgia", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, mFontSize, L"", &mTextFormat);
 	assert(hr == S_OK);
 
 	mTextFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
@@ -367,11 +372,15 @@ void D2DSetup::Init()
 	mDwriteFactory->CreateRenderingParams(&mDefaultParams);
 
 	IDWriteRenderingParams* customParams;
-	printf("Default param contrast is: %f, gamma: %f\n",
+	printf("Default param contrast is: %f, gamma: %f, render mode: %d, pixel geometry %d\n",
 		    mDefaultParams->GetEnhancedContrast(),
-			mDefaultParams->GetGamma());
+			mDefaultParams->GetGamma(),
+			mDefaultParams->GetRenderingMode(),
+			mDefaultParams->GetPixelGeometry());
 	float contrast = mDefaultParams->GetEnhancedContrast();
 	contrast = 1.0f;
+
+	printf("Default rendering modeis: %d\n", DWRITE_RENDERING_MODE_DEFAULT);
 
 	mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, mDefaultParams->GetClearTypeLevel(), mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC, &mCustomParams);
 	printf("Custom params is: %f\n", mCustomParams->GetEnhancedContrast());
