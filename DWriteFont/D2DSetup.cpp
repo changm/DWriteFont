@@ -6,6 +6,20 @@
 #include <assert.h>
 #include <stdio.h>
 
+#define SK_A32_SHIFT 24
+#define SK_R32_SHIFT 16
+#define SK_G32_SHIFT 8
+#define SK_B32_SHIFT 0
+
+/**
+*  Pack the components into a SkPMColor, checking (in the debug version) that
+*  the components are 0..255, and are already premultiplied (i.e. alpha >= color)
+*/
+static inline int SkPackARGB32(uint8_t a, uint8_t r, uint8_t g, uint8_t b) {
+	return (a << SK_A32_SHIFT) | (r << SK_R32_SHIFT) |
+			(g << SK_G32_SHIFT) | (b << SK_B32_SHIFT);
+}
+
 D2DSetup::~D2DSetup()
 {
 	mFactory->Release();
@@ -83,7 +97,7 @@ IDWriteFontFace* D2DSetup::GetFontFace()
 
 	IDWriteFontCollection* systemFonts;
 	mDwriteFactory->GetSystemFontCollection(&systemFonts, TRUE);
-	PrintFonts(systemFonts);
+	//PrintFonts(systemFonts);
 
 	UINT32 fontIndex;
 	BOOL exists;
@@ -196,6 +210,8 @@ BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bo
 	const uint8_t* tableG = this->fPreBlend.fG;
 	const uint8_t* tableB = this->fPreBlend.fB;
 
+	printf("Final output\n\n");
+
 	for (int y = 0; y < height; y++) {
 		int sourceHeight = y * width * 3;	// expect 3 bytes per pixel
 		int destHeight = y * width * 4;		// convert to 4 bytes per pixel to add alpha opaque channel
@@ -208,7 +224,23 @@ BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bo
 			BYTE g = aRGB[srcIndex + 1];
 			BYTE b = aRGB[srcIndex + 2];
 
+			BYTE orig_r = r;
+			BYTE orig_g = g;
+			BYTE orig_b = b;
+
+			BYTE lut_r;
+			BYTE lut_g;
+			BYTE lut_b;
+
+			BYTE short_r;
+			BYTE short_g;
+			BYTE short_b;
+
 			if (useLUT) {
+				lut_r = sk_apply_lut_if<true>(r, tableR);
+				lut_g = sk_apply_lut_if<true>(g, tableG);
+				lut_b = sk_apply_lut_if<true>(b, tableB);
+
 				r = sk_apply_lut_if<true>(r, tableR);
 				g = sk_apply_lut_if<true>(g, tableG);
 				b = sk_apply_lut_if<true>(b, tableB);
@@ -216,35 +248,48 @@ BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bo
 
 			if (convert) {
 				// Taken from http://searchfox.org/mozilla-central/source/gfx/skia/skia/include/core/SkColorPriv.h#654
-				BYTE shortR = r >> 3;
-				BYTE shortG = g >> 2;
-				BYTE shortB = b >> 3;
+				short_r = r >> 3;
+				short_g = g >> 3;
+				short_b = b >> 3;
 
-				BYTE oldR = r;
-
-				r = shortR << 3;
-				g = shortG << 2;
-				b = shortB << 3;
+				r = short_r << 3;
+				g = short_g << 3;
+				b = short_b << 3;
 			}
 
-			// Now upscale
-			/*
-			r = SkUpscale31To32(r);
-			g = SkUpscale31To32(g);
-			b = SkUpscale31To32(b);
-			*/
+			BYTE upscale_r = SkUpscale31To32(short_r);
+			BYTE upscale_g = SkUpscale31To32(short_g);
+			BYTE upscale_b = SkUpscale31To32(short_b);
+
+			BYTE skia_blend_r = SkBlend32(0, 255, upscale_r);
+			BYTE skia_blend_g = SkBlend32(0, 255, upscale_g);
+			BYTE skia_blend_b = SkBlend32(0, 255, upscale_b);
 
 			// Blend to draw black text on white
-			// Mozilla's color is 0x404040
 			r = Blend(0x00, 0xFF, r);
 			g = Blend(0x00, 0xFF, g);
 			b = Blend(0x00, 0xFF, b);
 
+			/*
 			bitmapImage[destIndex] = r;
 			bitmapImage[destIndex + 1] = g;
 			bitmapImage[destIndex + 2] = b;
 			bitmapImage[destIndex + 3] = 0xFF;
+			*/
+
+			bitmapImage[destIndex] = skia_blend_r;
+			bitmapImage[destIndex + 1] = skia_blend_g;
+			bitmapImage[destIndex + 2] = skia_blend_b;
+			bitmapImage[destIndex + 3] = 0xFF;
+
+			printf("Orig (%u, %u, %u) => LUT (%u, %u, %u) => Short (%u, %u, %u) => Upscale (%u, %u, %u) => final (%u, %u, %u)\n",
+				orig_r, orig_g, orig_b,
+				lut_r, lut_g, lut_b,
+				short_r, short_g, short_b,
+				upscale_r, upscale_g, upscale_b,
+				skia_blend_r, skia_blend_g, skia_blend_b);
 		}
+		printf("\n");
 
 	}
 	return bitmapImage;
@@ -282,6 +327,21 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool use
 	hr = analysis->CreateAlphaTexture(DWRITE_TEXTURE_TYPE::DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds, image, bufferSize);
 	assert(hr == S_OK);
 
+	printf("Alpha texture\n");
+	for (int i = 0; i < (int)height; i++) {
+		for (int j = 0; j < (int)width * 3; j += 3) {
+			int row = i * width;
+			printf("(%u,%u,%u) ",
+				image[row + j],
+				image[row + j + 1],
+				image[row + j + 2]
+			);
+		}
+		printf("\n");
+	}
+
+	BYTE* bitmapImage = ConvertToRGBA(image, width, height, useLUT, convert);
+
 	/*
 	for (int i = 0; i < (int)height; i++) {
 		for (int j = 0; j < (int)width * 3; j += 3) {
@@ -295,20 +355,6 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool use
 		printf("\n\n");
 	}
 	*/
-
-	BYTE* bitmapImage = ConvertToRGBA(image, width, height, useLUT, convert);
-
-	for (int i = 0; i < (int)height; i++) {
-		for (int j = 0; j < (int)width * 3; j += 3) {
-			int row = i * width;
-			printf("(%u,%u,%u) ",
-				image[row + j],
-				image[row + j + 1],
-				image[row + j + 2]
-			);
-		}
-		printf("\n\n");
-	}
 
 	// Now try to make a bitmap
 	ID2D1Bitmap* bitmap;
@@ -354,8 +400,8 @@ void D2DSetup::AlternateText(int count) {
 void D2DSetup::DrawWithMask()
 {
 	IDWriteFontFace* fontFace = GetFontFace();
-	const int x = 100;
-	const int y = 100;
+	const int x = 10;
+	const int y = 40;
 
 	DWRITE_RENDERING_MODE recommendedMode = DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL;
 	HRESULT hr = fontFace->GetRecommendedRenderingMode(mFontSize,
@@ -366,22 +412,22 @@ void D2DSetup::DrawWithMask()
 	assert(hr == S_OK);
 	printf("Recommended mode is: %d\n", recommendedMode);
 
-	WCHAR d2dMessage[] = L"S";
+	/*
+	WCHAR d2dMessage[] = L"T";
 	DWRITE_GLYPH_RUN d2dGlyphRun;
 	CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
 	DrawTextWithD2D(d2dGlyphRun, x, y, mDefaultParams);
 
-	/*
 	WCHAR d2dLutChop[] = L"Donald Trump Sucks";
 	DWRITE_GLYPH_RUN d2dLutChopRun;
 	CreateGlyphRunAnalysis(d2dLutChopRun, fontFace, d2dLutChop);
 	DrawWithBitmap(d2dLutChopRun, x, y + 20, true, true);
 	*/
 
-	WCHAR sym[] = L"S";
+	WCHAR sym[] = L"o";
 	DWRITE_GLYPH_RUN symRun;
 	CreateGlyphRunAnalysis(symRun, fontFace, sym);
-	DrawWithBitmap(symRun, x, y + 40, true, true, recommendedMode);
+	DrawWithBitmap(symRun, x, y, true, true, recommendedMode);
 }
 
 static
@@ -414,7 +460,7 @@ void D2DSetup::Init()
 	hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), reinterpret_cast<IUnknown**>(&mDwriteFactory));
 	assert(hr == S_OK);
 
-	mFontSize = 18;
+	mFontSize = 13;
 	printf("Font size is: %d\n", mFontSize);
 	hr = mDwriteFactory->CreateTextFormat(L"Georgia", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, mFontSize, L"", &mTextFormat);
 	assert(hr == S_OK);
