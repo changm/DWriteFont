@@ -179,7 +179,7 @@ void D2DSetup::CreateGlyphRunAnalysis(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFac
 	glyphRun.glyphOffsets = offset;
 }
 
-void D2DSetup::DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y, IDWriteRenderingParams* aParams)
+void D2DSetup::DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y, IDWriteRenderingParams* aParams, bool aClear)
 {
 	D2D1_POINT_2F origin;
 	origin.x = x;
@@ -190,7 +190,9 @@ void D2DSetup::DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y, IDWrite
 	mRenderTarget->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
 	mRenderTarget->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
 
-	mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
+	if (aClear) {
+		mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
+	}
 
 	mRenderTarget->DrawGlyphRun(origin, &glyphRun, mBlackBrush);
 	mRenderTarget->EndDraw();
@@ -284,22 +286,30 @@ BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bo
 			bitmapImage[destIndex + 2] = skia_blend_b;
 			bitmapImage[destIndex + 3] = 0xFF;
 
+			/*
 			printf("Orig (%u, %u, %u) => LUT (%u, %u, %u) => Short (%u, %u, %u) => Upscale (%u, %u, %u) => final (%u, %u, %u)\n",
 				orig_r, orig_g, orig_b,
 				lut_r, lut_g, lut_b,
 				short_r, short_g, short_b,
 				upscale_r, upscale_g, upscale_b,
 				skia_blend_r, skia_blend_g, skia_blend_b);
+				*/
 		}
-		printf("\n");
+		//printf("\n");
 
 	}
 	return bitmapImage;
 }
 
-void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool useLUT, bool convert, DWRITE_RENDERING_MODE aRenderMode, DWRITE_MEASURING_MODE aMeasureMode)
+void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool useLUT, bool convert,
+							  DWRITE_RENDERING_MODE aRenderMode, DWRITE_MEASURING_MODE aMeasureMode,
+							  bool aClear)
 {
 	mRenderTarget->BeginDraw();
+
+	if (aClear) {
+		mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
+	}
 
 	IDWriteGlyphRunAnalysis* analysis;
 	DWRITE_MATRIX fXform;
@@ -329,6 +339,7 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool use
 	hr = analysis->CreateAlphaTexture(DWRITE_TEXTURE_TYPE::DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds, image, bufferSize);
 	assert(hr == S_OK);
 
+	/*
 	printf("Alpha texture\n");
 	for (int i = 0; i < (int)height; i++) {
 		for (int j = 0; j < (int)width * 3; j += 3) {
@@ -341,6 +352,7 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool use
 		}
 		printf("\n");
 	}
+	*/
 
 	BYTE* bitmapImage = ConvertToRGBA(image, width, height, useLUT, convert);
 
@@ -383,25 +395,27 @@ void D2DSetup::AlternateText(int count) {
 	switch (count % 2) {
 	case 0:
 	{
-		WCHAR d2dMessage[] = L"Donald Trump Sucks Default";
+		WCHAR d2dMessage[] = L"Donald Trump Sucks Custom";
 		DWRITE_GLYPH_RUN d2dGlyphRun;
 		CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
-		DrawTextWithD2D(d2dGlyphRun, x, y, mDefaultParams);
+		DrawTextWithD2D(d2dGlyphRun, x, y, mCustomParams, true);
 		break;
 	}
 	case 1:
 	{
+		/*
 		WCHAR d2dMessage[] = L"Donald Trump Sucks Custom";
 		DWRITE_GLYPH_RUN d2dGlyphRun;
 		CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
-		DrawTextWithD2D(d2dGlyphRun, x, y, mCustomParams);
+		DrawTextWithD2D(d2dGlyphRun, x, y, mCustomParams, true);
 		break;
-		/*
+		*/
 		WCHAR d2dLutChop[] = L"Donald Trump Sucks";
 		DWRITE_GLYPH_RUN d2dLutChopRun;
 		CreateGlyphRunAnalysis(d2dLutChopRun, fontFace, d2dLutChop);
-		DrawWithBitmap(d2dLutChopRun, x, y, true, true, DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL);
-		*/
+		DrawWithBitmap(d2dLutChopRun, x, y, true, true,
+					   DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL, DWRITE_MEASURING_MODE_NATURAL, true);
+		break;
 	}
 	} // end switch
 }
@@ -428,26 +442,20 @@ void D2DSetup::DrawWithMask()
 	DrawTextWithD2D(d2dGlyphRun, x, y, mDefaultParams);
 	*/
 
-	WCHAR d2dMessage[] = L"The Donald Trump Sucks";
+	WCHAR d2dMessage[] = L"The Donald Trump Sucks D2D Default";
 	DWRITE_GLYPH_RUN d2dGlyphRun;
 	CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
 	DrawTextWithD2D(d2dGlyphRun, x, y, mDefaultParams);
 
-	DrawTextWithD2D(d2dGlyphRun, x, y + 20, mCustomParams);
-
-	/*
-	WCHAR d2dLutChop[] = L"Donald Trump Sucks";
+	WCHAR d2dLutChop[] = L"The Donald Trump Sucks D2D 1.0 Constrast";
 	DWRITE_GLYPH_RUN d2dLutChopRun;
 	CreateGlyphRunAnalysis(d2dLutChopRun, fontFace, d2dLutChop);
-	DrawWithBitmap(d2dLutChopRun, x, y + 20, true, true);
-	*/
+	DrawTextWithD2D(d2dLutChopRun, x, y + 20, mCustomParams);
 
-	/*
-	WCHAR sym[] = L"o";
+	WCHAR sym[] = L"The Donald Trump Sucks LUT";
 	DWRITE_GLYPH_RUN symRun;
 	CreateGlyphRunAnalysis(symRun, fontFace, sym);
-	DrawWithBitmap(symRun, x, y, true, true, recommendedMode);
-	*/
+	DrawWithBitmap(symRun, x, y + 40, true, true, recommendedMode);
 }
 
 static
@@ -528,7 +536,8 @@ void D2DSetup::Init()
 
 SkMaskGamma::PreBlend D2DSetup::CreateLUT()
 {
-	const float contrast = 0.5;
+	//const float contrast = 0.5;
+	const float contrast = 0.8;
 	const float paintGamma = 1.8;
 	const float deviceGamma = 1.8;
 	SkMaskGamma* gamma = new SkMaskGamma(contrast, paintGamma, deviceGamma);

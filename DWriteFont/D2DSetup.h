@@ -37,12 +37,13 @@ private:
 	SkMaskGamma::PreBlend CreateLUT();
 
 	IDWriteFontFace* GetFontFace();
-	void DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y, IDWriteRenderingParams* aParams);
+	void DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y, IDWriteRenderingParams* aParams, bool aClear = false);
 	void CreateGlyphRunAnalysis(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontFace, WCHAR message[]);
 	BYTE* ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bool convert = false);
 	void DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool useLUT, bool convert = false,
 						DWRITE_RENDERING_MODE aRenderingMode = DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC,
-						DWRITE_MEASURING_MODE aMode = DWRITE_MEASURING_MODE_NATURAL);
+						DWRITE_MEASURING_MODE aMode = DWRITE_MEASURING_MODE_NATURAL,
+						bool aClear = false);
 
 	HWND mHWND;
 	HDC mHDC;
