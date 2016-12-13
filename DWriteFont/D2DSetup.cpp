@@ -190,6 +190,8 @@ void D2DSetup::DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y, IDWrite
 	mRenderTarget->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
 	mRenderTarget->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
 
+	mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
+
 	mRenderTarget->DrawGlyphRun(origin, &glyphRun, mBlackBrush);
 	mRenderTarget->EndDraw();
 }
@@ -381,7 +383,7 @@ void D2DSetup::AlternateText(int count) {
 	switch (count % 2) {
 	case 0:
 	{
-		WCHAR d2dMessage[] = L"Donald Trump Sucks D2D";
+		WCHAR d2dMessage[] = L"Donald Trump Sucks Default";
 		DWRITE_GLYPH_RUN d2dGlyphRun;
 		CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
 		DrawTextWithD2D(d2dGlyphRun, x, y, mDefaultParams);
@@ -389,10 +391,17 @@ void D2DSetup::AlternateText(int count) {
 	}
 	case 1:
 	{
+		WCHAR d2dMessage[] = L"Donald Trump Sucks Custom";
+		DWRITE_GLYPH_RUN d2dGlyphRun;
+		CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
+		DrawTextWithD2D(d2dGlyphRun, x, y, mCustomParams);
+		break;
+		/*
 		WCHAR d2dLutChop[] = L"Donald Trump Sucks";
 		DWRITE_GLYPH_RUN d2dLutChopRun;
 		CreateGlyphRunAnalysis(d2dLutChopRun, fontFace, d2dLutChop);
 		DrawWithBitmap(d2dLutChopRun, x, y, true, true, DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL);
+		*/
 	}
 	} // end switch
 }
@@ -400,8 +409,8 @@ void D2DSetup::AlternateText(int count) {
 void D2DSetup::DrawWithMask()
 {
 	IDWriteFontFace* fontFace = GetFontFace();
-	const int x = 10;
-	const int y = 40;
+	const int x = 100;
+	const int y = 100;
 
 	DWRITE_RENDERING_MODE recommendedMode = DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL;
 	HRESULT hr = fontFace->GetRecommendedRenderingMode(mFontSize,
@@ -417,17 +426,28 @@ void D2DSetup::DrawWithMask()
 	DWRITE_GLYPH_RUN d2dGlyphRun;
 	CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
 	DrawTextWithD2D(d2dGlyphRun, x, y, mDefaultParams);
+	*/
 
+	WCHAR d2dMessage[] = L"The Donald Trump Sucks";
+	DWRITE_GLYPH_RUN d2dGlyphRun;
+	CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
+	DrawTextWithD2D(d2dGlyphRun, x, y, mDefaultParams);
+
+	DrawTextWithD2D(d2dGlyphRun, x, y + 20, mCustomParams);
+
+	/*
 	WCHAR d2dLutChop[] = L"Donald Trump Sucks";
 	DWRITE_GLYPH_RUN d2dLutChopRun;
 	CreateGlyphRunAnalysis(d2dLutChopRun, fontFace, d2dLutChop);
 	DrawWithBitmap(d2dLutChopRun, x, y + 20, true, true);
 	*/
 
+	/*
 	WCHAR sym[] = L"o";
 	DWRITE_GLYPH_RUN symRun;
 	CreateGlyphRunAnalysis(symRun, fontFace, sym);
 	DrawWithBitmap(symRun, x, y, true, true, recommendedMode);
+	*/
 }
 
 static
@@ -485,6 +505,7 @@ void D2DSetup::Init()
 			mDefaultParams->GetGamma(),
 			mDefaultParams->GetRenderingMode(),
 			mDefaultParams->GetPixelGeometry());
+
 	float contrast = mDefaultParams->GetEnhancedContrast();
 	contrast = 1.0f;
 

@@ -128,7 +128,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    ShowWindow(hWnd, nCmdShow);
    UpdateWindow(hWnd);
-   //CreateTimers(hWnd);
+   CreateTimers(hWnd);
    return TRUE;
 }
 
@@ -142,7 +142,7 @@ static void PaintText(HWND aHWND, HDC aHDC)
 static void AlternateText(HWND aHWND, HDC aHDC, int count)
 {
 	D2DSetup d2d(aHWND, aHDC);
-	d2d.Clear();
+	//d2d.Clear();
 	d2d.AlternateText(count);
 }
 
