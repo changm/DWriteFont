@@ -18,6 +18,7 @@ class D2DSetup
 public:
 	D2DSetup(HWND aHWND, HDC aHDC)
 		: fPreBlend(CreateLUT())
+		, fGdiPreBlend(CreateGdiLUT())
 	{
 		mHDC = aHDC;
 		mHWND = aHWND;
@@ -35,15 +36,19 @@ public:
 
 private:
 	SkMaskGamma::PreBlend CreateLUT();
+	SkMaskGamma::PreBlend CreateGdiLUT();
 
 	IDWriteFontFace* GetFontFace();
 	void DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y, IDWriteRenderingParams* aParams, bool aClear = false);
 	void CreateGlyphRunAnalysis(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontFace, WCHAR message[]);
-	BYTE* ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bool convert = false);
+
+	BYTE* ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bool convert = false, bool useGDILUT = false);
+
 	void DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool useLUT, bool convert = false,
 						DWRITE_RENDERING_MODE aRenderingMode = DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC,
 						DWRITE_MEASURING_MODE aMode = DWRITE_MEASURING_MODE_NATURAL,
-						bool aClear = false);
+						bool aClear = false,
+						bool useGDILUT = false);
 
 	HWND mHWND;
 	HDC mHDC;
@@ -63,4 +68,5 @@ private:
 	int mFontSize;
 
 	SkMaskGamma::PreBlend fPreBlend;
+	SkMaskGamma::PreBlend fGdiPreBlend;
 };

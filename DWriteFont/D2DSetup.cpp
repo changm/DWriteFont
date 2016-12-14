@@ -93,7 +93,7 @@ static inline int SkBlend32(int src, int dst, int alpha) {
 
 IDWriteFontFace* D2DSetup::GetFontFace()
 {
-	static const WCHAR fontFamilyName[] = L"Georgia";
+	static const WCHAR fontFamilyName[] = L"Arial";
 
 	IDWriteFontCollection* systemFonts;
 	mDwriteFactory->GetSystemFontCollection(&systemFonts, TRUE);
@@ -204,7 +204,7 @@ static inline int SkUpscale31To32(int value) {
 
 // Converts the given rgb 3x1 cleartype alpha mask to the required RGBA_UNOM as required by bitmaps
 // Also blends to draw black text on white
-BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bool convert)
+BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bool convert, bool useGDILUT)
 {
 	int size = width * height * 4;
 	BYTE* bitmapImage = (BYTE*)malloc(size);
@@ -213,6 +213,12 @@ BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bo
 	const uint8_t* tableR = this->fPreBlend.fR;
 	const uint8_t* tableG = this->fPreBlend.fG;
 	const uint8_t* tableB = this->fPreBlend.fB;
+
+	if (useGDILUT) {
+		tableR = this->fGdiPreBlend.fR;
+		tableG = this->fGdiPreBlend.fG;
+		tableB = this->fGdiPreBlend.fB;
+	}
 
 	printf("Final output\n\n");
 
@@ -270,11 +276,11 @@ BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bo
 			BYTE skia_blend_b = SkBlend32(0, 255, upscale_b);
 
 			// Blend to draw black text on white
+			/*
 			r = Blend(0x00, 0xFF, r);
 			g = Blend(0x00, 0xFF, g);
 			b = Blend(0x00, 0xFF, b);
 
-			/*
 			bitmapImage[destIndex] = r;
 			bitmapImage[destIndex + 1] = g;
 			bitmapImage[destIndex + 2] = b;
@@ -303,7 +309,7 @@ BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bo
 
 void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool useLUT, bool convert,
 							  DWRITE_RENDERING_MODE aRenderMode, DWRITE_MEASURING_MODE aMeasureMode,
-							  bool aClear)
+							  bool aClear, bool useGDILUT)
 {
 	mRenderTarget->BeginDraw();
 
@@ -354,7 +360,7 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool use
 	}
 	*/
 
-	BYTE* bitmapImage = ConvertToRGBA(image, width, height, useLUT, convert);
+	BYTE* bitmapImage = ConvertToRGBA(image, width, height, useLUT, convert, useGDILUT);
 
 	/*
 	for (int i = 0; i < (int)height; i++) {
@@ -395,10 +401,10 @@ void D2DSetup::AlternateText(int count) {
 	switch (count % 2) {
 	case 0:
 	{
-		WCHAR d2dMessage[] = L"Donald Trump Sucks Custom";
+		WCHAR d2dMessage[] = L"The Donald Trump GDI";
 		DWRITE_GLYPH_RUN d2dGlyphRun;
 		CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
-		DrawTextWithD2D(d2dGlyphRun, x, y, mCustomParams, true);
+		DrawTextWithD2D(d2dGlyphRun, x, y, mGDIParams, true);
 		break;
 	}
 	case 1:
@@ -410,11 +416,13 @@ void D2DSetup::AlternateText(int count) {
 		DrawTextWithD2D(d2dGlyphRun, x, y, mCustomParams, true);
 		break;
 		*/
-		WCHAR d2dLutChop[] = L"Donald Trump Sucks";
+		WCHAR d2dLutChop[] = L"The Donald Trump GDI LUT";
 		DWRITE_GLYPH_RUN d2dLutChopRun;
 		CreateGlyphRunAnalysis(d2dLutChopRun, fontFace, d2dLutChop);
 		DrawWithBitmap(d2dLutChopRun, x, y, true, true,
-					   DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL, DWRITE_MEASURING_MODE_NATURAL, true);
+						DWRITE_RENDERING_MODE_CLEARTYPE_GDI_CLASSIC,
+						DWRITE_MEASURING_MODE_NATURAL,
+						true, true);
 		break;
 	}
 	} // end switch
@@ -442,20 +450,24 @@ void D2DSetup::DrawWithMask()
 	DrawTextWithD2D(d2dGlyphRun, x, y, mDefaultParams);
 	*/
 
-	WCHAR d2dMessage[] = L"The Donald Trump Sucks D2D Default";
+	WCHAR d2dMessage[] = L"The Donald Trump Sucks GDI";
 	DWRITE_GLYPH_RUN d2dGlyphRun;
 	CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
-	DrawTextWithD2D(d2dGlyphRun, x, y, mDefaultParams);
-
-	WCHAR d2dLutChop[] = L"The Donald Trump Sucks D2D 1.0 Constrast";
-	DWRITE_GLYPH_RUN d2dLutChopRun;
-	CreateGlyphRunAnalysis(d2dLutChopRun, fontFace, d2dLutChop);
-	DrawTextWithD2D(d2dLutChopRun, x, y + 20, mCustomParams);
+	DrawTextWithD2D(d2dGlyphRun, x, y, mGDIParams);
 
 	WCHAR sym[] = L"The Donald Trump Sucks LUT";
 	DWRITE_GLYPH_RUN symRun;
 	CreateGlyphRunAnalysis(symRun, fontFace, sym);
-	DrawWithBitmap(symRun, x, y + 40, true, true, recommendedMode);
+	DrawWithBitmap(symRun, x, y + 20, true, true, DWRITE_RENDERING_MODE_GDI_CLASSIC);
+
+	WCHAR gdi[] = L"The Donald Trump Sucks LUT GDI";
+	DWRITE_GLYPH_RUN gdiRun;
+	CreateGlyphRunAnalysis(gdiRun, fontFace, gdi);
+	DrawWithBitmap(gdiRun, x, y + 40, true, true,
+				    DWRITE_RENDERING_MODE_GDI_CLASSIC,
+					DWRITE_MEASURING_MODE_NATURAL,
+					false,
+					true);
 }
 
 static
@@ -490,7 +502,7 @@ void D2DSetup::Init()
 
 	mFontSize = 13;
 	printf("Font size is: %d\n", mFontSize);
-	hr = mDwriteFactory->CreateTextFormat(L"Georgia", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, mFontSize, L"", &mTextFormat);
+	hr = mDwriteFactory->CreateTextFormat(L"Arial", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, mFontSize, L"", &mTextFormat);
 	assert(hr == S_OK);
 
 	mTextFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
@@ -520,7 +532,11 @@ void D2DSetup::Init()
 	printf("Default rendering modeis: %d\n", DWRITE_RENDERING_MODE_DEFAULT);
 
 	mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, mDefaultParams->GetClearTypeLevel(), mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_DEFAULT, &mCustomParams);
-	printf("Custom params is: %f\n", mCustomParams->GetEnhancedContrast());
+	printf("Contrast: %f, gamma: %f, cleartype level: %f, rendering mode: %d\n",
+		    mCustomParams->GetEnhancedContrast(),
+			mCustomParams->GetGamma(),
+			mCustomParams->GetClearTypeLevel(),
+			mCustomParams->GetRenderingMode());
 
 	DWRITE_PIXEL_GEOMETRY geometry = mDefaultParams->GetPixelGeometry();
 	mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, mDefaultParams->GetClearTypeLevel(), mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_GDI_CLASSIC, &mGDIParams);
@@ -537,9 +553,33 @@ void D2DSetup::Init()
 SkMaskGamma::PreBlend D2DSetup::CreateLUT()
 {
 	//const float contrast = 0.5;
-	const float contrast = 0.8;
+	const float contrast = 1.0;
 	const float paintGamma = 1.8;
 	const float deviceGamma = 1.8;
+	SkMaskGamma* gamma = new SkMaskGamma(contrast, paintGamma, deviceGamma);
+
+	// Gecko is always setting the preblend to black background.
+	SkColor blackLuminanceColor = SkColorSetARGBInline(255, 0, 0, 0);
+	SkColor whiteLuminance = SkColorSetARGBInline(255, 255, 255, 255);
+	SkColor mozillaColor = SkColorSetARGBInline(255, 0x40, 0x40, 0x40);
+	return gamma->preBlend(blackLuminanceColor);
+}
+
+// See http://searchfox.org/mozilla-central/source/gfx/skia/skia/src/ports/SkFontHost_win.cpp#1080
+SkMaskGamma::PreBlend D2DSetup::CreateGdiLUT()
+{
+	UINT level = 0;
+	if (!SystemParametersInfo(SPI_GETFONTSMOOTHINGCONTRAST, 0, &level, 0) || !level) {
+		// can't get the data, so use a default
+		level = 1400;
+	}
+
+	const float contrast = 1.0;
+	//const float paintGamma = (float) level / 1000.0f;
+	//const float deviceGamma = (float)level / 1000.0f;
+
+	const float paintGamma = 2.3f;
+	const float deviceGamma = 2.3f;
 	SkMaskGamma* gamma = new SkMaskGamma(contrast, paintGamma, deviceGamma);
 
 	// Gecko is always setting the preblend to black background.
