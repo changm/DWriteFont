@@ -420,7 +420,7 @@ void D2DSetup::AlternateText(int count) {
 		DWRITE_GLYPH_RUN d2dLutChopRun;
 		CreateGlyphRunAnalysis(d2dLutChopRun, fontFace, d2dLutChop);
 		DrawWithBitmap(d2dLutChopRun, x, y, true, true,
-						DWRITE_RENDERING_MODE_CLEARTYPE_GDI_CLASSIC,
+						DWRITE_RENDERING_MODE_GDI_CLASSIC,
 						DWRITE_MEASURING_MODE_NATURAL,
 						true, true);
 		break;
@@ -464,7 +464,7 @@ void D2DSetup::DrawWithMask()
 	DWRITE_GLYPH_RUN gdiRun;
 	CreateGlyphRunAnalysis(gdiRun, fontFace, gdi);
 	DrawWithBitmap(gdiRun, x, y + 40, true, true,
-				    DWRITE_RENDERING_MODE_GDI_CLASSIC,
+					DWRITE_RENDERING_MODE_GDI_CLASSIC,
 					DWRITE_MEASURING_MODE_NATURAL,
 					false,
 					true);
@@ -521,7 +521,7 @@ void D2DSetup::Init()
 
 	IDWriteRenderingParams* customParams;
 	printf("Default param contrast is: %f, gamma: %f, render mode: %d, pixel geometry %d\n",
-		    mDefaultParams->GetEnhancedContrast(),
+			mDefaultParams->GetEnhancedContrast(),
 			mDefaultParams->GetGamma(),
 			mDefaultParams->GetRenderingMode(),
 			mDefaultParams->GetPixelGeometry());
@@ -533,7 +533,7 @@ void D2DSetup::Init()
 
 	mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, mDefaultParams->GetClearTypeLevel(), mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_DEFAULT, &mCustomParams);
 	printf("Contrast: %f, gamma: %f, cleartype level: %f, rendering mode: %d\n",
-		    mCustomParams->GetEnhancedContrast(),
+			mCustomParams->GetEnhancedContrast(),
 			mCustomParams->GetGamma(),
 			mCustomParams->GetClearTypeLevel(),
 			mCustomParams->GetRenderingMode());
