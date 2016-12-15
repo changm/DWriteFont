@@ -72,6 +72,7 @@ private:
 	IDWriteRenderingParams* mCustomParams;
 	IDWriteRenderingParams* mDefaultParams;
 	IDWriteRenderingParams* mGDIParams;
+	IDWriteRenderingParams* mGrayscaleParams;
 	int mFontSize;
 
 	SkMaskGamma::PreBlend fPreBlend;

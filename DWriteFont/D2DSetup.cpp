@@ -93,7 +93,7 @@ static inline int SkBlend32(int src, int dst, int alpha) {
 
 IDWriteFontFace* D2DSetup::GetFontFace()
 {
-  static const WCHAR fontFamilyName[] = L"Arial";
+  static const WCHAR fontFamilyName[] = L"Georgia";
 
   IDWriteFontCollection* systemFonts;
   mDwriteFactory->GetSystemFontCollection(&systemFonts, TRUE);
@@ -313,18 +313,19 @@ BYTE* D2DSetup::BlendGrayscale(BYTE* aRGB, int width, int height)
   BYTE* bitmapImage = (BYTE*)malloc(size);
   memset(bitmapImage, 0x00, size);
 
-  const uint8_t* tableR = this->fPreBlend.fR;
-  const uint8_t* tableG = this->fPreBlend.fG;
-  const uint8_t* tableB = this->fPreBlend.fB;
-
   for (int y = 0; y < height; y++) {
-    int sourceHeight = y * width * 3;  // expect 3 bytes per pixel
+    int sourceHeight = y * width;  // expect 3 bytes per pixel
     int destHeight = y * width * 4;    // convert to 4 bytes per pixel to add alpha opaque channel
 
     for (int i = 0; i < width; i++) {
       int destIndex = destHeight + (4 * i);
-      int srcIndex = sourceHeight + (i * 3);
+      int srcIndex = sourceHeight + i;
 
+      BYTE r = aRGB[srcIndex];
+      BYTE g = r;
+      BYTE b = r;
+
+      /*
       BYTE r = aRGB[srcIndex];
       BYTE g = aRGB[srcIndex + 1];
       BYTE b = aRGB[srcIndex + 2];
@@ -333,13 +334,12 @@ BYTE* D2DSetup::BlendGrayscale(BYTE* aRGB, int width, int height)
       BYTE lut_g = sk_apply_lut_if<true>(g, tableG);
       BYTE lut_b = sk_apply_lut_if<true>(b, tableB);
 
-      BYTE average = (r + g + b) / 3;
-      BYTE pixel = sk_apply_lut_if<true>(average, tableG);
-
-      /*
-      int lut_average = (lut_r + lut_g + lut_b) / 3;
-      BYTE lut_pixel = lut_average;
+      //BYTE average = (r + g + b) / 3;
+      //BYTE pixel = sk_apply_lut_if<true>(average, tableG);
+      BYTE pixel = (lut_r + lut_g + lut_b) / 3;
       */
+
+      BYTE pixel = r;
 
       r = Blend(0x00, 0xFF, pixel);
       g = Blend(0x00, 0xFF, pixel);
@@ -380,12 +380,17 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
 
   IDWriteGlyphRunAnalysis* analysis;
   // The 1.0f could be pretty bad here since it's not accounting for DPI, every reference in gecko uses 1.0
-  HRESULT hr = mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, DWRITE_RENDERING_MODE_NATURAL,
+  HRESULT hr = mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, DWRITE_RENDERING_MODE_ALIASED,
                                                       DWRITE_MEASURING_MODE_NATURAL, 0.0f, 0.0f, &analysis);
   assert(hr == S_OK);
 
+  float gamma;
+  float contrast;
+  float cleartype;
+  analysis->GetAlphaBlendParams(this->mGrayscaleParams, &gamma, &contrast, &cleartype);
+
   RECT bounds;
-  hr = analysis->GetAlphaTextureBounds(DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
+  hr = analysis->GetAlphaTextureBounds(DWRITE_TEXTURE_ALIASED_1x1, &bounds);
   assert(hr == S_OK);
 
   float width = bounds.right - bounds.left;
@@ -393,11 +398,11 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   assert(width > 0);
   assert(height > 0);
 
-  int bufferSize = width * height * 3;
+  int bufferSize = width * height;
   BYTE* image = (BYTE*)malloc(bufferSize);
   memset(image, 0xFF, bufferSize);
 
-  hr = analysis->CreateAlphaTexture(DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds, image, bufferSize);
+  hr = analysis->CreateAlphaTexture(DWRITE_TEXTURE_ALIASED_1x1, &bounds, image, bufferSize);
   assert(hr == S_OK);
 
   BYTE* bitmapImage = BlendGrayscale(image, width, height);
@@ -509,7 +514,7 @@ void D2DSetup::DrawWithMask()
   HRESULT hr = fontFace->GetRecommendedRenderingMode(mFontSize,
     1.0f,
     DWRITE_MEASURING_MODE_NATURAL, // We use this in gecko
-    mDefaultParams,
+    mGrayscaleParams,
     &recommendedMode);
   assert(hr == S_OK);
   printf("Recommended mode is: %d\n", recommendedMode);
@@ -524,7 +529,7 @@ void D2DSetup::DrawWithMask()
   WCHAR d2dMessage[] = L"The Donald Trump Sucks d2d grayscale";
   DWRITE_GLYPH_RUN d2dGlyphRun;
   CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
-  DrawTextWithD2D(d2dGlyphRun, x, y, mDefaultParams, true, D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+  DrawTextWithD2D(d2dGlyphRun, x, y, mCustomParams, true, D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
 
   WCHAR grayscaleMessage[] = L"The Donald Trump Sucks GRAYSCALE";
   DWRITE_GLYPH_RUN grayscaleRun;
@@ -581,7 +586,7 @@ void D2DSetup::Init()
 
   mFontSize = 13;
   printf("Font size is: %d\n", mFontSize);
-  hr = mDwriteFactory->CreateTextFormat(L"Arial", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, mFontSize, L"", &mTextFormat);
+  hr = mDwriteFactory->CreateTextFormat(L"Georgia", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, mFontSize, L"", &mTextFormat);
   assert(hr == S_OK);
 
   mTextFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
@@ -623,6 +628,10 @@ void D2DSetup::Init()
   IDWriteRenderingParams* monitorParams;
   mDwriteFactory->CreateMonitorRenderingParams(GetPrimaryMonitorHandle(), &monitorParams);
 
+  float grayscale = 0.0f;
+  hr = mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, grayscale, mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_DEFAULT, &mGrayscaleParams);
+  assert(hr == S_OK);
+
   float dpiX = 0;
   float dpiY = 0;
   mRenderTarget->GetDpi(&dpiX, &dpiY);
@@ -631,10 +640,9 @@ void D2DSetup::Init()
 
 SkMaskGamma::PreBlend D2DSetup::CreateLUT()
 {
-  //const float contrast = 0.5;
   const float contrast = 1.0;
-  const float paintGamma = 1.8;
-  const float deviceGamma = 1.8;
+  const float paintGamma = 1.8f;
+  const float deviceGamma = 1.8f;
   SkMaskGamma* gamma = new SkMaskGamma(contrast, paintGamma, deviceGamma);
 
   // Gecko is always setting the preblend to black background.
