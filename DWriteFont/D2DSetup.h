@@ -48,6 +48,7 @@ private:
 
     BYTE* ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bool convert = false, bool useGDILUT = false);
     BYTE* BlendGrayscale(BYTE* aRGB, int width, int height);
+    BYTE* BlendRaw(BYTE* aRGB, int width, int height);
 
     void DrawBitmap(BYTE* image, float width, float height, int x, int y, RECT bounds);
     void DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y);
@@ -61,8 +62,8 @@ private:
     HWND mHWND;
     HDC mHDC;
 
-    ID2D1Factory*                      mFactory;
-    ID2D1HwndRenderTarget*                      mRenderTarget;
+    ID2D1Factory* mFactory;
+    ID2D1HwndRenderTarget* mRenderTarget;
     ID2D1RenderTarget* mBitmapRenderTarget;
 
     IDWriteFactory* mDwriteFactory;
@@ -82,4 +83,5 @@ private:
     SkMaskGamma::PreBlend fGdiPreBlend;
 
     IWICImagingFactory* mWICFactory;
+    IWICBitmap* mWICBitmap;
 };

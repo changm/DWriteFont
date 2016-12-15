@@ -88,14 +88,7 @@ void D2DSetup::Init()
   float contrast = mDefaultParams->GetEnhancedContrast();
   contrast = 1.0f;
 
-  printf("Default rendering modeis: %d\n", DWRITE_RENDERING_MODE_DEFAULT);
-
   mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, mDefaultParams->GetClearTypeLevel(), mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_DEFAULT, &mCustomParams);
-  printf("Contrast: %f, gamma: %f, cleartype level: %f, rendering mode: %d\n",
-      mCustomParams->GetEnhancedContrast(),
-      mCustomParams->GetGamma(),
-      mCustomParams->GetClearTypeLevel(),
-      mCustomParams->GetRenderingMode());
 
   DWRITE_PIXEL_GEOMETRY geometry = mDefaultParams->GetPixelGeometry();
   mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, mDefaultParams->GetClearTypeLevel(), mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_GDI_CLASSIC, &mGDIParams);
@@ -168,7 +161,7 @@ void D2DSetup::PrintFonts(IDWriteFontCollection* aFontCollection)
 
     wchar_t fontName[256];
     familyName->GetString(index, fontName, length + 1);
-    wprintf(L"Font name: %s\n", fontName);
+    //wprintf(L"Font name: %s\n", fontName);
   }
 }
 
@@ -400,6 +393,34 @@ BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bo
   return bitmapImage;
 }
 
+BYTE* D2DSetup::BlendRaw(BYTE* aRGB, int width, int height)
+{
+  int size = width * height * 4;
+  BYTE* bitmapImage = (BYTE*)malloc(size);
+  memset(bitmapImage, 0x00, size);
+
+  for (int y = 0; y < height; y++) {
+      int sourceHeight = y * width * 4;  // expect 4 bytes per pixel
+      int destHeight = y * width * 4;    // convert to 4 bytes per pixel to add alpha opaque channel
+
+      for (int i = 0; i < width; i++) {
+          int srcIndex = sourceHeight + (4 * i);
+          int destIndex = destHeight + (4 * i);
+
+          BYTE r = aRGB[srcIndex];
+          BYTE g = aRGB[srcIndex + 1];
+          BYTE b = aRGB[srcIndex + 2];
+
+          bitmapImage[destIndex] = r;
+          bitmapImage[destIndex + 1] = g;
+          bitmapImage[destIndex + 2] = b;
+          bitmapImage[destIndex + 3] = 0xFF;
+      }
+  }
+
+  return bitmapImage;
+}
+
 BYTE* D2DSetup::BlendGrayscale(BYTE* aRGB, int width, int height)
 {
   int size = width * height * 4;
@@ -451,7 +472,7 @@ void D2DSetup::DrawBitmap(BYTE* image, float width, float height, int x, int y, 
 {
   // Now try to make a bitmap
   ID2D1Bitmap* bitmap;
-  D2D1_BITMAP_PROPERTIES properties = { DXGI_FORMAT_R8G8B8A8_UNORM,  D2D1_ALPHA_MODE_PREMULTIPLIED };
+  D2D1_BITMAP_PROPERTIES properties = { DXGI_FORMAT_B8G8R8A8_UNORM,  D2D1_ALPHA_MODE_PREMULTIPLIED };
   D2D1_SIZE_U size = D2D1::SizeU(width, height);
 
   HRESULT hr = mRenderTarget->CreateBitmap(size, image, width * 4, properties, &bitmap);
@@ -477,11 +498,6 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
                                                       DWRITE_MEASURING_MODE_NATURAL, 0.0f, 0.0f, &analysis);
   assert(hr == S_OK);
 
-  float gamma;
-  float contrast;
-  float cleartype;
-  analysis->GetAlphaBlendParams(this->mGrayscaleParams, &gamma, &contrast, &cleartype);
-
   RECT bounds;
   hr = analysis->GetAlphaTextureBounds(DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
   assert(hr == S_OK);
@@ -490,10 +506,85 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   float height = bounds.bottom - bounds.top;
   assert(width > 0);
   assert(height > 0);
+  
+  uint32_t bitmap_width = (uint32_t)width;
+  uint32_t bitmap_height = (uint32_t)height;
+  hr = this->mWICFactory->CreateBitmap(bitmap_width,
+      bitmap_height,
+      // This has to be the PBGRA format, which means already pre multiplied.
+      GUID_WICPixelFormat32bppPBGRA,
+      WICBitmapCacheOnDemand,
+      &mWICBitmap);
+  assert (hr == S_OK);
 
   D2D1_RENDER_TARGET_PROPERTIES properties = D2D1::RenderTargetProperties();
-  //this->mFactory->CreateWicBitmapRenderTarget()
+  properties.type = D2D1_RENDER_TARGET_TYPE_SOFTWARE;
+  // Known formats here - https://msdn.microsoft.com/en-us/library/windows/desktop/dd756766(v=vs.85).aspx
+  properties.pixelFormat = D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED);
 
+  hr = mFactory->CreateWicBitmapRenderTarget(mWICBitmap, properties, &mBitmapRenderTarget);
+  assert (hr == S_OK);
+
+  D2D1_POINT_2F origin;
+  origin.x = 0;
+  origin.y = 0;
+  mBitmapRenderTarget->BeginDraw();
+  mBitmapRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
+
+  /*
+  mBitmapRenderTarget->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+  mBitmapRenderTarget->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
+  mBitmapRenderTarget->SetTextRenderingParams(mGrayscaleParams);
+  */
+
+  // Cannot use the same black brush created from a different render target
+  ID2D1SolidColorBrush* blackBrush;
+  hr = mBitmapRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black, 1.0f), &blackBrush);
+  assert(hr == S_OK);
+
+  //mBitmapRenderTarget->DrawGlyphRun(origin, &glyphRun, blackBrush);
+  WCHAR msg[] = L"Test Things";
+  const int length = wcslen(msg);
+  mBitmapRenderTarget->DrawTextW(msg, length, mTextFormat, D2D1::RectF(0, 0, width, height), blackBrush);
+
+  hr = mBitmapRenderTarget->EndDraw();
+  assert (hr == S_OK);
+  
+
+  // Now readback.
+  IWICBitmapLock* readback;
+  WICRect wicBounds;
+  wicBounds.Height = bitmap_height;
+  wicBounds.Width = bitmap_width;
+  wicBounds.X = 0;
+  wicBounds.Y = 0;
+
+  hr = mWICBitmap->Lock(&wicBounds, WICBitmapLockRead, &readback);
+  assert (hr == S_OK);
+
+  UINT stride;
+  hr = readback->GetStride(&stride);
+  assert (hr == S_OK);
+  assert (width * 4 == stride);
+
+  UINT buffer_size;
+  BYTE* buffer_ptr;
+  hr = readback->GetDataPointer(&buffer_size, &buffer_ptr);
+  assert (hr == S_OK);
+
+  UINT buffer_width;
+  UINT buffer_height;
+  hr = readback->GetSize(&buffer_width, &buffer_height);
+  assert (hr == S_OK);
+  assert (buffer_width * buffer_height * 4 == buffer_size);
+
+  BYTE* drawn_glyph = BlendRaw(buffer_ptr, buffer_width, buffer_height);
+  DrawBitmap(drawn_glyph, buffer_width, buffer_height, 300, 300, bounds);
+
+  blackBrush->Release();
+  readback->Release();
+  mBitmapRenderTarget->Release();
+  mWICBitmap->Release();
 
 
   /*
@@ -631,7 +722,7 @@ void D2DSetup::DrawWithMask()
   CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
   DrawTextWithD2D(d2dGlyphRun, x, y, mCustomParams, true, D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
 
-  WCHAR grayscaleMessage[] = L"The Donald Trump Sucks GRAYSCALE";
+  WCHAR grayscaleMessage[] = L"Grayscale Bitmap Running";
   DWRITE_GLYPH_RUN grayscaleRun;
   CreateGlyphRunAnalysis(grayscaleRun, fontFace, grayscaleMessage);
   DrawGrayscaleWithBitmap(grayscaleRun, x, y + 20);
