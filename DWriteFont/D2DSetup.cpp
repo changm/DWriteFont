@@ -20,6 +20,99 @@ static inline int SkPackARGB32(uint8_t a, uint8_t r, uint8_t g, uint8_t b) {
       (g << SK_G32_SHIFT) | (b << SK_B32_SHIFT);
 }
 
+static
+HMONITOR GetPrimaryMonitorHandle()
+{
+  const POINT ptZero = { 0, 0 };
+  return MonitorFromPoint(ptZero, MONITOR_DEFAULTTOPRIMARY);
+}
+
+void D2DSetup::Init()
+{
+  HRESULT hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &mFactory);
+  assert(hr == S_OK);
+
+  RECT clientRect;
+  GetClientRect(mHWND, &clientRect);
+
+  D2D1_SIZE_U size = D2D1::SizeU(
+    clientRect.right - clientRect.left,
+    clientRect.bottom - clientRect.top
+  );
+
+  hr = CoCreateInstance(
+                        CLSID_WICImagingFactory,
+                        NULL,
+                        CLSCTX_INPROC_SERVER,
+                        IID_IWICImagingFactory,
+                        (LPVOID*)&mWICFactory
+  );
+  assert(hr == S_OK);
+
+  // Create a Direct2D render target.
+  D2D1_RENDER_TARGET_PROPERTIES properties = D2D1::RenderTargetProperties();
+  D2D1_HWND_RENDER_TARGET_PROPERTIES hwndProperties = D2D1::HwndRenderTargetProperties(mHWND, size);
+  hr = mFactory->CreateHwndRenderTarget(&properties, &hwndProperties,
+                      &mRenderTarget);
+  assert(hr == S_OK);
+
+  hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), reinterpret_cast<IUnknown**>(&mDwriteFactory));
+  assert(hr == S_OK);
+
+  mFontSize = 13;
+  printf("Font size is: %d\n", mFontSize);
+  hr = mDwriteFactory->CreateTextFormat(L"Georgia", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, mFontSize, L"", &mTextFormat);
+  assert(hr == S_OK);
+
+  mTextFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+  mTextFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
+
+  hr = mRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x404040, 1.0f), &mDarkBlackBrush);
+  hr = mRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black, 1.0f), &mBlackBrush);
+  hr = mRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White, 1.0f), &mWhiteBrush);
+  hr = mRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black, 0.0f), &mTransparentBlackBrush);
+
+  // Now we can play with params
+  mRenderTarget->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_DEFAULT);
+
+  IDWriteRenderingParams* defaultParams;
+  mDwriteFactory->CreateRenderingParams(&mDefaultParams);
+
+  IDWriteRenderingParams* customParams;
+  printf("Default param contrast is: %f, gamma: %f, render mode: %d, pixel geometry %d\n",
+      mDefaultParams->GetEnhancedContrast(),
+      mDefaultParams->GetGamma(),
+      mDefaultParams->GetRenderingMode(),
+      mDefaultParams->GetPixelGeometry());
+
+  float contrast = mDefaultParams->GetEnhancedContrast();
+  contrast = 1.0f;
+
+  printf("Default rendering modeis: %d\n", DWRITE_RENDERING_MODE_DEFAULT);
+
+  mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, mDefaultParams->GetClearTypeLevel(), mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_DEFAULT, &mCustomParams);
+  printf("Contrast: %f, gamma: %f, cleartype level: %f, rendering mode: %d\n",
+      mCustomParams->GetEnhancedContrast(),
+      mCustomParams->GetGamma(),
+      mCustomParams->GetClearTypeLevel(),
+      mCustomParams->GetRenderingMode());
+
+  DWRITE_PIXEL_GEOMETRY geometry = mDefaultParams->GetPixelGeometry();
+  mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, mDefaultParams->GetClearTypeLevel(), mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_GDI_CLASSIC, &mGDIParams);
+
+  IDWriteRenderingParams* monitorParams;
+  mDwriteFactory->CreateMonitorRenderingParams(GetPrimaryMonitorHandle(), &monitorParams);
+
+  float grayscale = 0.0f;
+  hr = mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, grayscale, mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_DEFAULT, &mGrayscaleParams);
+  assert(hr == S_OK);
+
+  float dpiX = 0;
+  float dpiY = 0;
+  mRenderTarget->GetDpi(&dpiX, &dpiY);
+  printf("DPI x: %f, y: %f\n", dpiX, dpiY);
+}
+
 D2DSetup::~D2DSetup()
 {
   mFactory->Release();
@@ -31,7 +124,7 @@ D2DSetup::~D2DSetup()
   mWhiteBrush->Release();
   mDefaultParams->Release();
   mCustomParams->Release();
-
+  mWICFactory->Release();
 }
 
 void D2DSetup::Clear()
@@ -380,7 +473,7 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
 
   IDWriteGlyphRunAnalysis* analysis;
   // The 1.0f could be pretty bad here since it's not accounting for DPI, every reference in gecko uses 1.0
-  HRESULT hr = mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, DWRITE_RENDERING_MODE_ALIASED,
+  HRESULT hr = mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL,
                                                       DWRITE_MEASURING_MODE_NATURAL, 0.0f, 0.0f, &analysis);
   assert(hr == S_OK);
 
@@ -390,7 +483,7 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   analysis->GetAlphaBlendParams(this->mGrayscaleParams, &gamma, &contrast, &cleartype);
 
   RECT bounds;
-  hr = analysis->GetAlphaTextureBounds(DWRITE_TEXTURE_ALIASED_1x1, &bounds);
+  hr = analysis->GetAlphaTextureBounds(DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
   assert(hr == S_OK);
 
   float width = bounds.right - bounds.left;
@@ -398,6 +491,12 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   assert(width > 0);
   assert(height > 0);
 
+  D2D1_RENDER_TARGET_PROPERTIES properties = D2D1::RenderTargetProperties();
+  //this->mFactory->CreateWicBitmapRenderTarget()
+
+
+
+  /*
   int bufferSize = width * height;
   BYTE* image = (BYTE*)malloc(bufferSize);
   memset(image, 0xFF, bufferSize);
@@ -408,6 +507,7 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   BYTE* bitmapImage = BlendGrayscale(image, width, height);
   //BYTE* bitmapImage = ConvertToRGBA(image, width, height, false, false, false);
   DrawBitmap(bitmapImage, width, height, x, y, bounds);
+  */
 
   mRenderTarget->EndDraw();
 }
@@ -552,90 +652,6 @@ void D2DSetup::DrawWithMask()
           false,
           true);
           */
-}
-
-static
-HMONITOR GetPrimaryMonitorHandle()
-{
-  const POINT ptZero = { 0, 0 };
-  return MonitorFromPoint(ptZero, MONITOR_DEFAULTTOPRIMARY);
-}
-
-void D2DSetup::Init()
-{
-  HRESULT hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &mFactory);
-  assert(hr == S_OK);
-
-  RECT clientRect;
-  GetClientRect(mHWND, &clientRect);
-
-  D2D1_SIZE_U size = D2D1::SizeU(
-    clientRect.right - clientRect.left,
-    clientRect.bottom - clientRect.top
-  );
-
-  // Create a Direct2D render target.
-  D2D1_RENDER_TARGET_PROPERTIES properties = D2D1::RenderTargetProperties();
-  D2D1_HWND_RENDER_TARGET_PROPERTIES hwndProperties = D2D1::HwndRenderTargetProperties(mHWND, size);
-  hr = mFactory->CreateHwndRenderTarget(&properties, &hwndProperties,
-                      &mRenderTarget);
-  assert(hr == S_OK);
-
-  hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), reinterpret_cast<IUnknown**>(&mDwriteFactory));
-  assert(hr == S_OK);
-
-  mFontSize = 13;
-  printf("Font size is: %d\n", mFontSize);
-  hr = mDwriteFactory->CreateTextFormat(L"Georgia", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, mFontSize, L"", &mTextFormat);
-  assert(hr == S_OK);
-
-  mTextFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
-  mTextFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
-
-  hr = mRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x404040, 1.0f), &mDarkBlackBrush);
-  hr = mRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black, 1.0f), &mBlackBrush);
-  hr = mRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White, 1.0f), &mWhiteBrush);
-  hr = mRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black, 0.0f), &mTransparentBlackBrush);
-
-  // Now we can play with params
-  mRenderTarget->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_DEFAULT);
-
-  IDWriteRenderingParams* defaultParams;
-  mDwriteFactory->CreateRenderingParams(&mDefaultParams);
-
-  IDWriteRenderingParams* customParams;
-  printf("Default param contrast is: %f, gamma: %f, render mode: %d, pixel geometry %d\n",
-      mDefaultParams->GetEnhancedContrast(),
-      mDefaultParams->GetGamma(),
-      mDefaultParams->GetRenderingMode(),
-      mDefaultParams->GetPixelGeometry());
-
-  float contrast = mDefaultParams->GetEnhancedContrast();
-  contrast = 1.0f;
-
-  printf("Default rendering modeis: %d\n", DWRITE_RENDERING_MODE_DEFAULT);
-
-  mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, mDefaultParams->GetClearTypeLevel(), mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_DEFAULT, &mCustomParams);
-  printf("Contrast: %f, gamma: %f, cleartype level: %f, rendering mode: %d\n",
-      mCustomParams->GetEnhancedContrast(),
-      mCustomParams->GetGamma(),
-      mCustomParams->GetClearTypeLevel(),
-      mCustomParams->GetRenderingMode());
-
-  DWRITE_PIXEL_GEOMETRY geometry = mDefaultParams->GetPixelGeometry();
-  mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, mDefaultParams->GetClearTypeLevel(), mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_GDI_CLASSIC, &mGDIParams);
-
-  IDWriteRenderingParams* monitorParams;
-  mDwriteFactory->CreateMonitorRenderingParams(GetPrimaryMonitorHandle(), &monitorParams);
-
-  float grayscale = 0.0f;
-  hr = mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, grayscale, mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_DEFAULT, &mGrayscaleParams);
-  assert(hr == S_OK);
-
-  float dpiX = 0;
-  float dpiY = 0;
-  mRenderTarget->GetDpi(&dpiX, &dpiY);
-  printf("DPI x: %f, y: %f\n", dpiX, dpiY);
 }
 
 SkMaskGamma::PreBlend D2DSetup::CreateLUT()
