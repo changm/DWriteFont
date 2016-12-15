@@ -1,6 +1,7 @@
 #pragma once
 
 #include <dwrite.h>
+#include <dwrite_1.h>
 #include <direct.h>
 #include <d3d11.h>
 #include <d2d1.h>
@@ -39,10 +40,16 @@ private:
 	SkMaskGamma::PreBlend CreateGdiLUT();
 
 	IDWriteFontFace* GetFontFace();
-	void DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y, IDWriteRenderingParams* aParams, bool aClear = false);
+	void DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y,
+                       IDWriteRenderingParams* aParams, bool aClear = false,
+                       D2D1_TEXT_ANTIALIAS_MODE aaMode = D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
 	void CreateGlyphRunAnalysis(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontFace, WCHAR message[]);
 
 	BYTE* ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bool convert = false, bool useGDILUT = false);
+  BYTE* BlendGrayscale(BYTE* aRGB, int width, int height);
+
+  void DrawBitmap(BYTE* image, float width, float height, int x, int y, RECT bounds);
+  void DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y);
 
 	void DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool useLUT, bool convert = false,
 						DWRITE_RENDERING_MODE aRenderingMode = DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC,

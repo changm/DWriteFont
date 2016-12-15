@@ -179,7 +179,9 @@ void D2DSetup::CreateGlyphRunAnalysis(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFac
 	glyphRun.glyphOffsets = offset;
 }
 
-void D2DSetup::DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y, IDWriteRenderingParams* aParams, bool aClear)
+void D2DSetup::DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y,
+                               IDWriteRenderingParams* aParams, bool aClear,
+                               D2D1_TEXT_ANTIALIAS_MODE aaMode)
 {
 	D2D1_POINT_2F origin;
 	origin.x = x;
@@ -188,7 +190,7 @@ void D2DSetup::DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y, IDWrite
 	mRenderTarget->BeginDraw();
 	mRenderTarget->SetTextRenderingParams(aParams);
 	mRenderTarget->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
-	mRenderTarget->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
+	mRenderTarget->SetTextAntialiasMode(aaMode);
 
 	if (aClear) {
 		mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
@@ -267,16 +269,6 @@ BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bo
 				b = short_b << 3;
 			}
 
-			BYTE upscale_r = SkUpscale31To32(short_r);
-			BYTE upscale_g = SkUpscale31To32(short_g);
-			BYTE upscale_b = SkUpscale31To32(short_b);
-
-			BYTE skia_blend_r = SkBlend32(0, 255, upscale_r);
-			BYTE skia_blend_g = SkBlend32(0, 255, upscale_g);
-			BYTE skia_blend_b = SkBlend32(0, 255, upscale_b);
-
-			// Blend to draw black text on white
-			/*
 			r = Blend(0x00, 0xFF, r);
 			g = Blend(0x00, 0xFF, g);
 			b = Blend(0x00, 0xFF, b);
@@ -285,7 +277,15 @@ BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bo
 			bitmapImage[destIndex + 1] = g;
 			bitmapImage[destIndex + 2] = b;
 			bitmapImage[destIndex + 3] = 0xFF;
-			*/
+
+      /*
+			BYTE upscale_r = SkUpscale31To32(short_r);
+			BYTE upscale_g = SkUpscale31To32(short_g);
+			BYTE upscale_b = SkUpscale31To32(short_b);
+
+			BYTE skia_blend_r = SkBlend32(0, 255, upscale_r);
+			BYTE skia_blend_g = SkBlend32(0, 255, upscale_g);
+			BYTE skia_blend_b = SkBlend32(0, 255, upscale_b);
 
 			bitmapImage[destIndex] = skia_blend_r;
 			bitmapImage[destIndex + 1] = skia_blend_g;
@@ -305,6 +305,106 @@ BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bo
 
 	}
 	return bitmapImage;
+}
+
+BYTE* D2DSetup::BlendGrayscale(BYTE* aRGB, int width, int height)
+{
+  int size = width * height * 4;
+  BYTE* bitmapImage = (BYTE*)malloc(size);
+  memset(bitmapImage, 0x00, size);
+
+  const uint8_t* tableR = this->fPreBlend.fR;
+  const uint8_t* tableG = this->fPreBlend.fG;
+  const uint8_t* tableB = this->fPreBlend.fB;
+
+  for (int y = 0; y < height; y++) {
+    int sourceHeight = y * width * 3;	// expect 3 bytes per pixel
+    int destHeight = y * width * 4;		// convert to 4 bytes per pixel to add alpha opaque channel
+
+    for (int i = 0; i < width; i++) {
+      int destIndex = destHeight + (4 * i);
+      int srcIndex = sourceHeight + (i * 3);
+
+      BYTE r = aRGB[srcIndex];
+      BYTE g = aRGB[srcIndex + 1];
+      BYTE b = aRGB[srcIndex + 2];
+
+      BYTE lut_r = sk_apply_lut_if<true>(r, tableR);
+      BYTE lut_g = sk_apply_lut_if<true>(g, tableG);
+      BYTE lut_b = sk_apply_lut_if<true>(b, tableB);
+
+      BYTE average = (r + g + b) / 3;
+      BYTE pixel = sk_apply_lut_if<true>(average, tableG);
+
+      /*
+      int lut_average = (lut_r + lut_g + lut_b) / 3;
+      BYTE lut_pixel = lut_average;
+      */
+
+      r = Blend(0x00, 0xFF, pixel);
+      g = Blend(0x00, 0xFF, pixel);
+      b = Blend(0x00, 0xFF, pixel);
+
+      bitmapImage[destIndex] = r;
+      bitmapImage[destIndex + 1] = g;
+      bitmapImage[destIndex + 2] = b;
+      bitmapImage[destIndex + 3] = 0xFF;
+    }
+  }
+  return bitmapImage;
+}
+
+void D2DSetup::DrawBitmap(BYTE* image, float width, float height, int x, int y, RECT bounds)
+{
+  // Now try to make a bitmap
+  ID2D1Bitmap* bitmap;
+  D2D1_BITMAP_PROPERTIES properties = { DXGI_FORMAT_R8G8B8A8_UNORM,  D2D1_ALPHA_MODE_PREMULTIPLIED };
+  D2D1_SIZE_U size = D2D1::SizeU(width, height);
+
+  HRESULT hr = mRenderTarget->CreateBitmap(size, image, width * 4, properties, &bitmap);
+  assert(hr == S_OK);
+
+  // Finally draw the bitmap somewhere
+  D2D1_RECT_F destRect;
+  destRect.left = x + bounds.left;
+  destRect.right = x + bounds.right;
+  destRect.top = y + bounds.top;
+  destRect.bottom = y + bounds.bottom;
+
+  mRenderTarget->DrawBitmap(bitmap, &destRect, 1.0);
+}
+
+void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
+{
+  mRenderTarget->BeginDraw();
+
+  IDWriteGlyphRunAnalysis* analysis;
+  // The 1.0f could be pretty bad here since it's not accounting for DPI, every reference in gecko uses 1.0
+  HRESULT hr = mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, DWRITE_RENDERING_MODE_NATURAL,
+                                                      DWRITE_MEASURING_MODE_NATURAL, 0.0f, 0.0f, &analysis);
+  assert(hr == S_OK);
+
+  RECT bounds;
+  hr = analysis->GetAlphaTextureBounds(DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
+  assert(hr == S_OK);
+
+  float width = bounds.right - bounds.left;
+  float height = bounds.bottom - bounds.top;
+  assert(width > 0);
+  assert(height > 0);
+
+  int bufferSize = width * height * 3;
+  BYTE* image = (BYTE*)malloc(bufferSize);
+  memset(image, 0xFF, bufferSize);
+
+  hr = analysis->CreateAlphaTexture(DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds, image, bufferSize);
+  assert(hr == S_OK);
+
+  BYTE* bitmapImage = BlendGrayscale(image, width, height);
+  //BYTE* bitmapImage = ConvertToRGBA(image, width, height, false, false, false);
+  DrawBitmap(bitmapImage, width, height, x, y, bounds);
+
+  mRenderTarget->EndDraw();
 }
 
 void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool useLUT, bool convert,
@@ -361,37 +461,8 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool use
 	*/
 
 	BYTE* bitmapImage = ConvertToRGBA(image, width, height, useLUT, convert, useGDILUT);
+  DrawBitmap(bitmapImage, width, height, x, y, bounds);
 
-	/*
-	for (int i = 0; i < (int)height; i++) {
-		for (int j = 0; j < (int)width * 3; j += 3) {
-			int row = i * width;
-			printf("(%u,%u,%u) ",
-				image[row + j],
-				image[row + j + 1],
-				image[row + j + 2]
-			);
-		}
-		printf("\n\n");
-	}
-	*/
-
-	// Now try to make a bitmap
-	ID2D1Bitmap* bitmap;
-	D2D1_BITMAP_PROPERTIES properties = { DXGI_FORMAT_R8G8B8A8_UNORM,  D2D1_ALPHA_MODE_PREMULTIPLIED };
-	D2D1_SIZE_U size = D2D1::SizeU(width, height);
-
-	hr = mRenderTarget->CreateBitmap(size, bitmapImage, width * 4, properties, &bitmap);
-	assert(hr == S_OK);
-
-	// Finally draw the bitmap somewhere
-	D2D1_RECT_F destRect;
-	destRect.left = x + bounds.left;
-	destRect.right = x + bounds.right;
-	destRect.top = y + bounds.top;
-	destRect.bottom = y + bounds.bottom;
-
-	mRenderTarget->DrawBitmap(bitmap, &destRect, 1.0);
 	mRenderTarget->EndDraw();
 }
 
@@ -450,11 +521,18 @@ void D2DSetup::DrawWithMask()
 	DrawTextWithD2D(d2dGlyphRun, x, y, mDefaultParams);
 	*/
 
-	WCHAR d2dMessage[] = L"The Donald Trump Sucks GDI";
+	WCHAR d2dMessage[] = L"The Donald Trump Sucks d2d grayscale";
 	DWRITE_GLYPH_RUN d2dGlyphRun;
 	CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
-	DrawTextWithD2D(d2dGlyphRun, x, y, mGDIParams);
+	DrawTextWithD2D(d2dGlyphRun, x, y, mDefaultParams, true, D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
 
+  WCHAR grayscaleMessage[] = L"The Donald Trump Sucks GRAYSCALE";
+  DWRITE_GLYPH_RUN grayscaleRun;
+	CreateGlyphRunAnalysis(grayscaleRun, fontFace, grayscaleMessage);
+  DrawGrayscaleWithBitmap(grayscaleRun, x, y + 20);
+
+
+  /*
 	WCHAR sym[] = L"The Donald Trump Sucks LUT";
 	DWRITE_GLYPH_RUN symRun;
 	CreateGlyphRunAnalysis(symRun, fontFace, sym);
@@ -468,6 +546,7 @@ void D2DSetup::DrawWithMask()
 					DWRITE_MEASURING_MODE_NATURAL,
 					false,
 					true);
+          */
 }
 
 static
