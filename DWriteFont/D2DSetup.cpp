@@ -460,9 +460,16 @@ BYTE* D2DSetup::BlendGrayscale(BYTE* aRGB, int width, int height)
 
 void D2DSetup::DrawBitmap(BYTE* image, float width, float height, int x, int y, RECT bounds)
 {
+  float dpiX;
+  float dpiY;
+  mFactory->GetDesktopDpi(&dpiX, &dpiY);
+
   // Now try to make a bitmap
   ID2D1Bitmap* bitmap;
   D2D1_BITMAP_PROPERTIES properties = { DXGI_FORMAT_B8G8R8A8_UNORM,  D2D1_ALPHA_MODE_PREMULTIPLIED };
+  //properties.dpiX = dpiX;
+  //properties.dpiY = dpiY;
+
   D2D1_SIZE_U size = D2D1::SizeU(width, height);
 
   HRESULT hr = mRenderTarget->CreateBitmap(size, image, width * 4, properties, &bitmap);
@@ -483,8 +490,16 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   mRenderTarget->BeginDraw();
 
   IDWriteGlyphRunAnalysis* analysis;
+  DWRITE_MATRIX scaleTransform;
+  scaleTransform.dx = 0;
+  scaleTransform.dy = 0;
+  scaleTransform.m11 = 1.0;
+  scaleTransform.m12 = 0;
+  scaleTransform.m21 = 0;
+  scaleTransform.m22 = 1.0;
+
   // The 1.0f could be pretty bad here since it's not accounting for DPI, every reference in gecko uses 1.0
-  HRESULT hr = mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL,
+  HRESULT hr = mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 2.0f, nullptr, DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL,
                                                       DWRITE_MEASURING_MODE_NATURAL, 0.0f, 0.0f, &analysis);
   assert(hr == S_OK);
 
@@ -514,8 +529,8 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   // Blurriness is still confusing
   D2D1_RENDER_TARGET_PROPERTIES properties = D2D1::RenderTargetProperties();
   properties.type = D2D1_RENDER_TARGET_TYPE_SOFTWARE;
-  //properties.dpiX = dpiX;
-  //properties.dpiY = dpiY;
+  properties.dpiX = dpiX;
+  properties.dpiY = dpiY;
 
   // Known formats here - https://msdn.microsoft.com/en-us/library/windows/desktop/dd756766(v=vs.85).aspx
   properties.pixelFormat = D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED);
@@ -524,12 +539,10 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   assert (hr == S_OK);
 
   D2D1_POINT_2F origin;
-  origin.x = -bounds.left;
-  origin.y = -bounds.top;
+  origin.x = -bounds.left / 2.0; // Why is this divided by 2 here? Because the glyph run analysis just does a scale factor for DIP, but the bounds here needs to be in original glyph run analysis?
+  origin.y = -bounds.top / 2.0;
   mBitmapRenderTarget->BeginDraw();
   mBitmapRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
-  //mBitmapRenderTarget->SetTransform(D2D1::Matrix3x2F::Scale(0.5, 0.5));
-
   /*
   mBitmapRenderTarget->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
   mBitmapRenderTarget->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
@@ -581,7 +594,9 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
 
   BYTE* drawn_glyph = BlendRaw(buffer_ptr, buffer_width, buffer_height);
 
-  DrawBitmap(drawn_glyph, buffer_width, buffer_height, x, y, bounds);
+  mRenderTarget->SetTransform(D2D1::Matrix3x2F::Scale(0.5, 0.5));
+  DrawBitmap(drawn_glyph, buffer_width, buffer_height, x * 2, y * 2, bounds);
+  mRenderTarget->SetTransform(D2D1::Matrix3x2F::Scale(1.0, 1.0));
 
   blackBrush->Release();
   readback->Release();
@@ -733,6 +748,7 @@ void D2DSetup::DrawWithMask()
   CreateGlyphRunAnalysis(grayscaleRun, fontFace, grayscaleMessage);
   DrawGrayscaleWithBitmap(grayscaleRun, x, y + 20);
 
+  /*
   WCHAR grayscaleLUT[] = L"The Donald Trump Sucks Cleartype LUT";
   DWRITE_GLYPH_RUN grayscaleLUTRun;
   CreateGlyphRunAnalysis(grayscaleLUTRun, fontFace, grayscaleLUT);
@@ -745,15 +761,11 @@ void D2DSetup::DrawWithMask()
   CreateGlyphRunAnalysis(symRun, fontFace, sym);
   DrawWithBitmap(symRun, x, y + 20, true, true, DWRITE_RENDERING_MODE_GDI_CLASSIC);
 
-  WCHAR gdi[] = L"The Donald Trump Sucks LUT GDI";
+  WCHAR gdi[] = L"The Donald Trump Sucks LUT";
   DWRITE_GLYPH_RUN gdiRun;
   CreateGlyphRunAnalysis(gdiRun, fontFace, gdi);
-  DrawWithBitmap(gdiRun, x, y + 40, true, true,
-          DWRITE_RENDERING_MODE_GDI_CLASSIC,
-          DWRITE_MEASURING_MODE_NATURAL,
-          false,
-          true);
-          */
+  DrawWithBitmap(gdiRun, x, y + 60, true, true);
+  */
 }
 
 SkMaskGamma::PreBlend D2DSetup::CreateLUT()
