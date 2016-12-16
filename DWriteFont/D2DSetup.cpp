@@ -49,12 +49,19 @@ void D2DSetup::Init()
   );
   assert(hr == S_OK);
 
+  float dpiX;
+  float dpiY;
+  mFactory->GetDesktopDpi(&dpiX, &dpiY);
+
   // Create a Direct2D render target.
   D2D1_RENDER_TARGET_PROPERTIES properties = D2D1::RenderTargetProperties();
   D2D1_HWND_RENDER_TARGET_PROPERTIES hwndProperties = D2D1::HwndRenderTargetProperties(mHWND, size);
   hr = mFactory->CreateHwndRenderTarget(&properties, &hwndProperties,
                       &mRenderTarget);
   assert(hr == S_OK);
+
+  mRenderTarget->GetDpi(&dpiX, &dpiY);
+  printf("Dpi is: %f, %f\n", dpiX, dpiY);
 
   hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), reinterpret_cast<IUnknown**>(&mDwriteFactory));
   assert(hr == S_OK);
@@ -100,9 +107,6 @@ void D2DSetup::Init()
   hr = mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, grayscale, mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_DEFAULT, &mGrayscaleParams);
   assert(hr == S_OK);
 
-  float dpiX = 0;
-  float dpiY = 0;
-  mRenderTarget->GetDpi(&dpiX, &dpiY);
   printf("DPI x: %f, y: %f\n", dpiX, dpiY);
 }
 
@@ -468,8 +472,8 @@ void D2DSetup::DrawBitmap(BYTE* image, float width, float height, int x, int y, 
   // Now try to make a bitmap
   ID2D1Bitmap* bitmap;
   D2D1_BITMAP_PROPERTIES properties = { DXGI_FORMAT_B8G8R8A8_UNORM,  D2D1_ALPHA_MODE_PREMULTIPLIED };
-  //properties.dpiX = dpiX;
-  //properties.dpiY = dpiY;
+  properties.dpiX = dpiX;
+  properties.dpiY = dpiY;
 
   D2D1_SIZE_U size = D2D1::SizeU(width, height);
 
@@ -491,16 +495,8 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   mRenderTarget->BeginDraw();
 
   IDWriteGlyphRunAnalysis* analysis;
-  DWRITE_MATRIX scaleTransform;
-  scaleTransform.dx = 0;
-  scaleTransform.dy = 0;
-  scaleTransform.m11 = 1.0;
-  scaleTransform.m12 = 0;
-  scaleTransform.m21 = 0;
-  scaleTransform.m22 = 1.0;
-
   // The 1.0f could be pretty bad here since it's not accounting for DPI, every reference in gecko uses 1.0
-  HRESULT hr = mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 2.0f, nullptr, DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL,
+  HRESULT hr = mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, nullptr, DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL,
                                                       DWRITE_MEASURING_MODE_NATURAL, 0.0f, 0.0f, &analysis);
   assert(hr == S_OK);
 
@@ -513,8 +509,8 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   assert(width > 0);
   assert(height > 0);
   
-  uint32_t bitmap_width = (uint32_t)width;
-  uint32_t bitmap_height = (uint32_t)height;
+  uint32_t bitmap_width = (uint32_t)width * 2;
+  uint32_t bitmap_height = (uint32_t)height * 2;
   hr = this->mWICFactory->CreateBitmap(bitmap_width,
       bitmap_height,
       // This has to be the PBGRA format, which means already pre multiplied.
@@ -530,6 +526,7 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   // Blurriness is still confusing
   D2D1_RENDER_TARGET_PROPERTIES properties = D2D1::RenderTargetProperties();
   properties.type = D2D1_RENDER_TARGET_TYPE_SOFTWARE;
+  // Setting dpi here properly doesn't work also
   properties.dpiX = dpiX;
   properties.dpiY = dpiY;
 
@@ -539,9 +536,13 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   hr = mFactory->CreateWicBitmapRenderTarget(mWICBitmap, properties, &mBitmapRenderTarget);
   assert (hr == S_OK);
 
+  mBitmapRenderTarget->GetDpi(&dpiX, &dpiY);
+  printf("Dpi is: %f, %f\n", dpiX, dpiY);
+
   D2D1_POINT_2F origin;
-  origin.x = -bounds.left / 2.0; // Why is this divided by 2 here? Because the glyph run analysis just does a scale factor for DIP, but the bounds here needs to be in original glyph run analysis?
-  origin.y = -bounds.top / 2.0;
+  // Bounds fixed by changing the glyph run analysis to be font size * 2
+  origin.x = -bounds.left;
+  origin.y = -bounds.top;
   mBitmapRenderTarget->BeginDraw();
   mBitmapRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
   /*
@@ -580,7 +581,7 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   UINT stride;
   hr = readback->GetStride(&stride);
   assert (hr == S_OK);
-  assert (width * 4 == stride);
+  assert (bitmap_width * 4 == stride);
 
   UINT buffer_size;
   BYTE* buffer_ptr;
@@ -595,9 +596,7 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
 
   BYTE* drawn_glyph = BlendRaw(buffer_ptr, buffer_width, buffer_height);
 
-  mRenderTarget->SetTransform(D2D1::Matrix3x2F::Scale(0.5, 0.5));
-  DrawBitmap(drawn_glyph, buffer_width, buffer_height, x * 2, y * 2, bounds);
-  mRenderTarget->SetTransform(D2D1::Matrix3x2F::Scale(1.0, 1.0));
+  DrawBitmap(drawn_glyph, buffer_width, buffer_height, x, y, bounds);
 
   blackBrush->Release();
   readback->Release();
@@ -740,10 +739,12 @@ void D2DSetup::DrawWithMask()
   DrawTextWithD2D(d2dGlyphRun, x, y, mDefaultParams);
   */
 
+  /*
   WCHAR d2dMessage[] = L"The Donald Trump Sucks d2d grayscale";
   DWRITE_GLYPH_RUN d2dGlyphRun;
   CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
   DrawTextWithD2D(d2dGlyphRun, x, y, mCustomParams, true, D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+  */
 
   WCHAR grayscaleMessage[] = L"The Donald Trump Sucks Bitmap";
   DWRITE_GLYPH_RUN grayscaleRun;
