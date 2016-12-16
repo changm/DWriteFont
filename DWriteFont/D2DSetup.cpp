@@ -359,9 +359,10 @@ BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bo
       g = Blend(0x00, 0xFF, g);
       b = Blend(0x00, 0xFF, b);
 
-      bitmapImage[destIndex] = r;
+      // Assume bgr8
+      bitmapImage[destIndex] = b;
       bitmapImage[destIndex + 1] = g;
-      bitmapImage[destIndex + 2] = b;
+      bitmapImage[destIndex + 2] = r;
       bitmapImage[destIndex + 3] = 0xFF;
 
       /*
@@ -411,9 +412,10 @@ BYTE* D2DSetup::BlendRaw(BYTE* aRGB, int width, int height)
           BYTE g = aRGB[srcIndex + 1];
           BYTE b = aRGB[srcIndex + 2];
 
-          bitmapImage[destIndex] = r;
+          // Assume BGR8
+          bitmapImage[destIndex] = b;
           bitmapImage[destIndex + 1] = g;
-          bitmapImage[destIndex + 2] = b;
+          bitmapImage[destIndex + 2] = r;
           bitmapImage[destIndex + 3] = 0xFF;
       }
   }
