@@ -683,8 +683,13 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool use
     mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
   }
 
+  RECT bounds;
+  BYTE* bits = GetAlphaTexture(glyphRun, bounds, aRenderMode, aMeasureMode);
+  float width = bounds.right - bounds.left;
+  float height = bounds.bottom - bounds.top;
+
+  /*
   IDWriteGlyphRunAnalysis* analysis;
-  // The 1.0f could be pretty bad here since it's not accounting for DPI, every reference in gecko uses 1.0
   HRESULT hr = mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, aRenderMode, aMeasureMode, 0.0f, 0.0f, &analysis);
   assert(hr == S_OK);
 
@@ -716,11 +721,11 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool use
   }
   */
 
-  BYTE* bitmapImage = ConvertToBGRA(image, width, height, useLUT, convert, useGDILUT);
+  BYTE* bitmapImage = ConvertToBGRA(bits, width, height, useLUT, convert, useGDILUT);
   DrawBitmap(bitmapImage, width, height, x, y, bounds);
 
   free(bitmapImage);
-  free(image);
+  free(bits);
   mRenderTarget->EndDraw();
 }
 
@@ -771,6 +776,7 @@ void D2DSetup::DrawWithMask()
     &recommendedMode);
   assert(hr == S_OK);
   printf("Recommended mode is: %d\n", recommendedMode);
+  float scale = GetScaleFactor();
 
   /*
   WCHAR d2dMessage[] = L"T";
@@ -787,7 +793,8 @@ void D2DSetup::DrawWithMask()
 
   WCHAR bitmapMessage[] = L"The Donald Trump Bitmap";
   DWRITE_GLYPH_RUN bitmapGlyphRun;
-  CreateGlyphRun(bitmapGlyphRun, fontFace, bitmapMessage, 2.0);
+  // We have to scale when we draw with bitmaps but not with d2d. D2D handles the scale for us automatically.
+  CreateGlyphRun(bitmapGlyphRun, fontFace, bitmapMessage, scale);
   DrawWithBitmap(bitmapGlyphRun, x, y + 20, true, true);
 
   /*
