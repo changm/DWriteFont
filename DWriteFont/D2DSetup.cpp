@@ -48,26 +48,22 @@ void D2DSetup::Init()
                         (LPVOID*)&mWICFactory
   );
   assert(hr == S_OK);
-
-  float dpiX;
-  float dpiY;
-  mFactory->GetDesktopDpi(&dpiX, &dpiY);
+  mFactory->GetDesktopDpi(&mDpiX, &mDpiY);
 
   // Create a Direct2D render target.
   D2D1_RENDER_TARGET_PROPERTIES properties = D2D1::RenderTargetProperties();
+  properties.dpiX = mDpiX;
+  properties.dpiY = mDpiY;
+
   D2D1_HWND_RENDER_TARGET_PROPERTIES hwndProperties = D2D1::HwndRenderTargetProperties(mHWND, size);
   hr = mFactory->CreateHwndRenderTarget(&properties, &hwndProperties,
                       &mRenderTarget);
   assert(hr == S_OK);
 
-  mRenderTarget->GetDpi(&dpiX, &dpiY);
-  printf("Dpi is: %f, %f\n", dpiX, dpiY);
-
   hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), reinterpret_cast<IUnknown**>(&mDwriteFactory));
   assert(hr == S_OK);
 
   mFontSize = 13;
-  printf("Font size is: %d\n", mFontSize);
   hr = mDwriteFactory->CreateTextFormat(L"Georgia", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, mFontSize, L"", &mTextFormat);
   assert(hr == S_OK);
 
@@ -106,8 +102,6 @@ void D2DSetup::Init()
   float grayscale = 0.0f;
   hr = mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, grayscale, mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_DEFAULT, &mGrayscaleParams);
   assert(hr == S_OK);
-
-  printf("DPI x: %f, y: %f\n", dpiX, dpiY);
 }
 
 D2DSetup::~D2DSetup()
@@ -211,6 +205,7 @@ IDWriteFontFace* D2DSetup::GetFontFace()
   names->GetStringLength(0, &length);
   assert(hr == S_OK);
 
+  /*
   length += 1; // Need for null terminating char
   WCHAR* buffer = new WCHAR[length];
   hr = names->GetString(0, buffer, length);
@@ -220,6 +215,7 @@ IDWriteFontFace* D2DSetup::GetFontFace()
 
   printf("Stretch: %d, Style: %d, Weight: %d\n",
     actualFont->GetStretch(), actualFont->GetStyle(), actualFont->GetWeight());
+    */
 
   IDWriteFontFace* fontFace;
   actualFont->CreateFontFace(&fontFace);
@@ -227,7 +223,7 @@ IDWriteFontFace* D2DSetup::GetFontFace()
   return fontFace;
 }
 
-void D2DSetup::CreateGlyphRunAnalysis(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontFace, WCHAR message[])
+void D2DSetup::CreateGlyphRun(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontFace, WCHAR message[])
 {
   //static const WCHAR message[] = L"Hello World Glyph";
   const int length = wcslen(message);
@@ -463,22 +459,33 @@ BYTE* D2DSetup::BlendGrayscale(BYTE* aBGR, int width, int height)
   return bitmapImage;
 }
 
+void D2DSetup::CreateBitmap(ID2D1RenderTarget* aRenderTarget, ID2D1Bitmap** aOutBitmap,
+                            int width, int height,
+                            BYTE* aSource, uint32_t aStride)
+{
+  D2D1_BITMAP_PROPERTIES properties = { DXGI_FORMAT_B8G8R8A8_UNORM,  D2D1_ALPHA_MODE_PREMULTIPLIED };
+  properties.dpiX = mDpiX;
+  properties.dpiY = mDpiY;
+
+  float scale_factor = mDpiX / 96;
+
+  D2D1_SIZE_U bitmapSize = D2D1::SizeU(width, height);
+  HRESULT hr;
+  
+  if (aSource) {
+    hr = aRenderTarget->CreateBitmap(bitmapSize, aSource, aStride, properties, aOutBitmap);
+  } else {
+    hr = aRenderTarget->CreateBitmap(bitmapSize, properties, aOutBitmap);
+  }
+
+  assert(hr == S_OK);
+}
+
 void D2DSetup::DrawBitmap(BYTE* image, float width, float height, int x, int y, RECT bounds)
 {
-  float dpiX;
-  float dpiY;
-  mFactory->GetDesktopDpi(&dpiX, &dpiY);
-
-  // Now try to make a bitmap
-  ID2D1Bitmap* bitmap;
-  D2D1_BITMAP_PROPERTIES properties = { DXGI_FORMAT_B8G8R8A8_UNORM,  D2D1_ALPHA_MODE_PREMULTIPLIED };
-  properties.dpiX = dpiX;
-  properties.dpiY = dpiY;
-
-  D2D1_SIZE_U size = D2D1::SizeU(width, height);
-
-  HRESULT hr = mRenderTarget->CreateBitmap(size, image, width * 4, properties, &bitmap);
-  assert(hr == S_OK);
+  ID2D1Bitmap* bitmap = nullptr;
+  uint32_t stride = width * 4;
+  CreateBitmap(mRenderTarget, &bitmap, width, height, image, width * 4);
 
   // Finally draw the bitmap somewhere
   D2D1_RECT_F destRect;
@@ -487,31 +494,27 @@ void D2DSetup::DrawBitmap(BYTE* image, float width, float height, int x, int y, 
   destRect.top = y + bounds.top;
   destRect.bottom = y + bounds.bottom;
 
-  mRenderTarget->DrawBitmap(bitmap, &destRect, 1.0);
+  float opacity = 1.0;
+  mRenderTarget->DrawBitmap(bitmap, &destRect, opacity);
 }
 
 void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
 {
   mRenderTarget->BeginDraw();
 
-  IDWriteGlyphRunAnalysis* analysis;
-  // The 1.0f could be pretty bad here since it's not accounting for DPI, every reference in gecko uses 1.0
-  HRESULT hr = mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, nullptr, DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL,
-                                                      DWRITE_MEASURING_MODE_NATURAL, 0.0f, 0.0f, &analysis);
-  assert(hr == S_OK);
-
   RECT bounds;
-  hr = analysis->GetAlphaTextureBounds(DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
-  assert(hr == S_OK);
+  IDWriteGlyphRunAnalysis* analysis;
+  GetGlyphBounds(glyphRun, bounds, &analysis);
 
   float width = bounds.right - bounds.left;
   float height = bounds.bottom - bounds.top;
   assert(width > 0);
   assert(height > 0);
   
+  // Ugly DPI fix here.
   uint32_t bitmap_width = (uint32_t)width * 2;
   uint32_t bitmap_height = (uint32_t)height * 2;
-  hr = this->mWICFactory->CreateBitmap(bitmap_width,
+  HRESULT hr = this->mWICFactory->CreateBitmap(bitmap_width,
       bitmap_height,
       // This has to be the PBGRA format, which means already pre multiplied.
       GUID_WICPixelFormat32bppPBGRA,
@@ -519,25 +522,18 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
       &mWICBitmap);
   assert (hr == S_OK);
 
-  float dpiX;
-  float dpiY;
-  mFactory->GetDesktopDpi(&dpiX, &dpiY);
-
   // Blurriness is still confusing
   D2D1_RENDER_TARGET_PROPERTIES properties = D2D1::RenderTargetProperties();
   properties.type = D2D1_RENDER_TARGET_TYPE_SOFTWARE;
   // Setting dpi here properly doesn't work also
-  properties.dpiX = dpiX;
-  properties.dpiY = dpiY;
+  properties.dpiX = mDpiX;
+  properties.dpiY = mDpiY;
 
   // Known formats here - https://msdn.microsoft.com/en-us/library/windows/desktop/dd756766(v=vs.85).aspx
   properties.pixelFormat = D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED);
 
   hr = mFactory->CreateWicBitmapRenderTarget(mWICBitmap, properties, &mBitmapRenderTarget);
   assert (hr == S_OK);
-
-  mBitmapRenderTarget->GetDpi(&dpiX, &dpiY);
-  printf("Dpi is: %f, %f\n", dpiX, dpiY);
 
   D2D1_POINT_2F origin;
   // Bounds fixed by changing the glyph run analysis to be font size * 2
@@ -629,7 +625,48 @@ void D2DSetup::DrawGrayscaleWithLUT(DWRITE_GLYPH_RUN& glyphRun, int x, int y) {
   BYTE* bitmapImage = BlendGrayscale(image, width, height);
   DrawBitmap(bitmapImage, width, height, x, y, bounds);
 
+  free(image);
+  free(bitmapImage);
   mRenderTarget->EndDraw();
+}
+
+void D2DSetup::GetGlyphBounds(DWRITE_GLYPH_RUN& aRun, RECT& aOutBounds,
+                              IDWriteGlyphRunAnalysis** aOutAnalysis,
+                              DWRITE_RENDERING_MODE aRenderMode,
+                              DWRITE_MEASURING_MODE aMeasureMode)
+{
+  // Surprisingly, we don't have to account for the dpi here in the glyph run analysis, we do that in the bitmap
+  // instead.
+  HRESULT hr = mDwriteFactory->CreateGlyphRunAnalysis(&aRun, 1.0f, nullptr, aRenderMode,
+                                                      aMeasureMode, 0.0f, 0.0f, aOutAnalysis);
+  assert(hr == S_OK);
+
+  hr = (*aOutAnalysis)->GetAlphaTextureBounds(DWRITE_TEXTURE_CLEARTYPE_3x1, &aOutBounds);
+  assert(hr == S_OK);
+}
+
+BYTE* D2DSetup::GetAlphaTexture(DWRITE_GLYPH_RUN& aRun, RECT& aOutBounds,
+                                DWRITE_RENDERING_MODE aRenderMode,
+                                DWRITE_MEASURING_MODE aMeasureMode)
+{
+  IDWriteGlyphRunAnalysis* analysis;
+  GetGlyphBounds(aRun, aOutBounds, &analysis, aRenderMode, aMeasureMode);
+
+  float scale = GetScaleFactor();
+
+  float width = aOutBounds.right - aOutBounds.left;
+  float height = aOutBounds.bottom - aOutBounds.top;
+
+  int bufferSize = width * height * 3;
+  BYTE* image = (BYTE*)malloc(bufferSize);
+  memset(image, 0xFF, bufferSize);
+
+  // DWRITE_TEXTURE_CLEARTYPE uses RGB, but we use BGR everywhere else.
+  HRESULT hr = analysis->CreateAlphaTexture(DWRITE_TEXTURE_TYPE::DWRITE_TEXTURE_CLEARTYPE_3x1, &aOutBounds, image, bufferSize);
+  assert(hr == S_OK);
+
+  analysis->Release();
+  return image;
 }
 
 void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool useLUT, bool convert,
@@ -645,17 +682,14 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool use
   IDWriteGlyphRunAnalysis* analysis;
   // The 1.0f could be pretty bad here since it's not accounting for DPI, every reference in gecko uses 1.0
   HRESULT hr = mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, aRenderMode, aMeasureMode, 0.0f, 0.0f, &analysis);
-  if (hr != S_OK) {
-    printf("HResultis: %x\n", hr);
-    assert(hr == S_OK);
-  }
+  assert(hr == S_OK);
 
   RECT bounds;
   analysis->GetAlphaTextureBounds(DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
 
-  float width = bounds.right - bounds.left;
-  float height = bounds.bottom - bounds.top;
-  int bufferSize = width * height * 3;
+  float width = (bounds.right - bounds.left);
+  float height = (bounds.bottom - bounds.top);
+  int bufferSize = width * height * 3 * 2;
   BYTE* image = (BYTE*)malloc(bufferSize);
   memset(image, 0xFF, bufferSize);
 
@@ -681,6 +715,8 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool use
   BYTE* bitmapImage = ConvertToBGRA(image, width, height, useLUT, convert, useGDILUT);
   DrawBitmap(bitmapImage, width, height, x, y, bounds);
 
+  free(bitmapImage);
+  free(image);
   mRenderTarget->EndDraw();
 }
 
@@ -692,7 +728,7 @@ void D2DSetup::AlternateText(int count) {
   {
     WCHAR d2dMessage[] = L"The Donald Trump GDI";
     DWRITE_GLYPH_RUN d2dGlyphRun;
-    CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
+    CreateGlyphRun(d2dGlyphRun, fontFace, d2dMessage);
     DrawTextWithD2D(d2dGlyphRun, x, y, mGDIParams, true);
     break;
   }
@@ -707,7 +743,7 @@ void D2DSetup::AlternateText(int count) {
     */
     WCHAR d2dLutChop[] = L"The Donald Trump GDI LUT";
     DWRITE_GLYPH_RUN d2dLutChopRun;
-    CreateGlyphRunAnalysis(d2dLutChopRun, fontFace, d2dLutChop);
+    CreateGlyphRun(d2dLutChopRun, fontFace, d2dLutChop);
     DrawWithBitmap(d2dLutChopRun, x, y, true, true,
             DWRITE_RENDERING_MODE_GDI_CLASSIC,
             DWRITE_MEASURING_MODE_NATURAL,
@@ -739,16 +775,16 @@ void D2DSetup::DrawWithMask()
   DrawTextWithD2D(d2dGlyphRun, x, y, mDefaultParams);
   */
 
-  /*
   WCHAR d2dMessage[] = L"The Donald Trump Sucks d2d grayscale";
   DWRITE_GLYPH_RUN d2dGlyphRun;
-  CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
-  DrawTextWithD2D(d2dGlyphRun, x, y, mCustomParams, true, D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
-  */
+  CreateGlyphRun(d2dGlyphRun, fontFace, d2dMessage);
+  //DrawTextWithD2D(d2dGlyphRun, x, y, mCustomParams, true, D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+  DrawWithBitmap(d2dGlyphRun, x, y + 40, false);
 
+  /*
   WCHAR grayscaleMessage[] = L"The Donald Trump Sucks Bitmap";
   DWRITE_GLYPH_RUN grayscaleRun;
-  CreateGlyphRunAnalysis(grayscaleRun, fontFace, grayscaleMessage);
+  CreateGlyphRun(grayscaleRun, fontFace, grayscaleMessage);
   DrawGrayscaleWithBitmap(grayscaleRun, x, y + 20);
 
   /*

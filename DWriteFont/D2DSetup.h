@@ -41,7 +41,7 @@ private:
     SkMaskGamma::PreBlend CreateGdiLUT();
 
     IDWriteFontFace* GetFontFace();
-    void CreateGlyphRunAnalysis(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontFace, WCHAR message[]);
+    void CreateGlyphRun(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontFace, WCHAR message[]);
 
     BYTE* ConvertToBGRA(BYTE* aRGB, int width, int height, bool useLUT, bool convert = false, bool useGDILUT = false);
     BYTE* BlendGrayscale(BYTE* aRGB, int width, int height);
@@ -59,6 +59,19 @@ private:
     void DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y,
         IDWriteRenderingParams* aParams, bool aClear = false,
         D2D1_TEXT_ANTIALIAS_MODE aaMode = D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
+    void CreateBitmap(ID2D1RenderTarget* aRenderTarget, ID2D1Bitmap** aOutBitmap,
+                     int width, int height,
+                     BYTE* aSource = nullptr, uint32_t aSourceStride = 0);
+
+    BYTE* GetAlphaTexture(DWRITE_GLYPH_RUN& aRun, RECT& aOutBounds,
+                        DWRITE_RENDERING_MODE aRenderMode = DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL,
+                        DWRITE_MEASURING_MODE aMeasureMode = DWRITE_MEASURING_MODE_NATURAL);
+
+    void GetGlyphBounds(DWRITE_GLYPH_RUN& aRun, RECT& aOutBounds,
+                        IDWriteGlyphRunAnalysis** aOutAnalysis,
+                        DWRITE_RENDERING_MODE aRenderMode = DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL,
+                        DWRITE_MEASURING_MODE aMeasureMode = DWRITE_MEASURING_MODE_NATURAL);
+    float GetScaleFactor() { return mDpiX / 96.0; }
 
     HWND mHWND;
     HDC mHDC;
@@ -85,4 +98,7 @@ private:
 
     IWICImagingFactory* mWICFactory;
     IWICBitmap* mWICBitmap;
+
+    float mDpiX;
+    float mDpiY;
 };
