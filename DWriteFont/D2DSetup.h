@@ -43,7 +43,7 @@ private:
     IDWriteFontFace* GetFontFace();
     void CreateGlyphRunAnalysis(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontFace, WCHAR message[]);
 
-    BYTE* ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bool convert = false, bool useGDILUT = false);
+    BYTE* ConvertToBGRA(BYTE* aRGB, int width, int height, bool useLUT, bool convert = false, bool useGDILUT = false);
     BYTE* BlendGrayscale(BYTE* aRGB, int width, int height);
     BYTE* BlendRaw(BYTE* aRGB, int width, int height);
 

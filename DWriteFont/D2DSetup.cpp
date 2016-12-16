@@ -292,7 +292,7 @@ static inline int SkUpscale31To32(int value) {
 
 // Converts the given rgb 3x1 cleartype alpha mask to the required RGBA_UNOM as required by bitmaps
 // Also blends to draw black text on white
-BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bool convert, bool useGDILUT)
+BYTE* D2DSetup::ConvertToBGRA(BYTE* aRGB, int width, int height, bool useLUT, bool convert, bool useGDILUT)
 {
   int size = width * height * 4;
   BYTE* bitmapImage = (BYTE*)malloc(size);
@@ -394,7 +394,7 @@ BYTE* D2DSetup::ConvertToRGBA(BYTE* aRGB, int width, int height, bool useLUT, bo
   return bitmapImage;
 }
 
-BYTE* D2DSetup::BlendRaw(BYTE* aRGB, int width, int height)
+BYTE* D2DSetup::BlendRaw(BYTE* aBGR, int width, int height)
 {
   int size = width * height * 4;
   BYTE* bitmapImage = (BYTE*)malloc(size);
@@ -408,9 +408,10 @@ BYTE* D2DSetup::BlendRaw(BYTE* aRGB, int width, int height)
           int srcIndex = sourceHeight + (4 * i);
           int destIndex = destHeight + (4 * i);
 
-          BYTE r = aRGB[srcIndex];
-          BYTE g = aRGB[srcIndex + 1];
-          BYTE b = aRGB[srcIndex + 2];
+          // Assuming a BGR format
+          BYTE b = aBGR[srcIndex];
+          BYTE g = aBGR[srcIndex + 1];
+          BYTE r = aBGR[srcIndex + 2];
 
           // Assume BGR8
           bitmapImage[destIndex] = b;
@@ -423,7 +424,7 @@ BYTE* D2DSetup::BlendRaw(BYTE* aRGB, int width, int height)
   return bitmapImage;
 }
 
-BYTE* D2DSetup::BlendGrayscale(BYTE* aRGB, int width, int height)
+BYTE* D2DSetup::BlendGrayscale(BYTE* aBGR, int width, int height)
 {
   int size = width * height * 4;
   BYTE* bitmapImage = (BYTE*)malloc(size);
@@ -439,9 +440,9 @@ BYTE* D2DSetup::BlendGrayscale(BYTE* aRGB, int width, int height)
       int destIndex = destHeight + (4 * i);
       int srcIndex = sourceHeight + (i * 3);
 
-      BYTE r = aRGB[srcIndex];
-      BYTE g = aRGB[srcIndex + 1];
-      BYTE b = aRGB[srcIndex + 2];
+      BYTE r = aBGR[srcIndex];
+      BYTE g = aBGR[srcIndex + 1];
+      BYTE b = aBGR[srcIndex + 2];
 
       // This is what Skia does
       int average = (r + g + b) / 3;
@@ -659,6 +660,7 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool use
   BYTE* image = (BYTE*)malloc(bufferSize);
   memset(image, 0xFF, bufferSize);
 
+  // DWRITE_TEXTURE_CLEARTYPE uses RGB, but we use BGR everywhere else.
   hr = analysis->CreateAlphaTexture(DWRITE_TEXTURE_TYPE::DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds, image, bufferSize);
   assert(hr == S_OK);
 
@@ -677,7 +679,7 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool use
   }
   */
 
-  BYTE* bitmapImage = ConvertToRGBA(image, width, height, useLUT, convert, useGDILUT);
+  BYTE* bitmapImage = ConvertToBGRA(image, width, height, useLUT, convert, useGDILUT);
   DrawBitmap(bitmapImage, width, height, x, y, bounds);
 
   mRenderTarget->EndDraw();
