@@ -527,14 +527,14 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
 
   D2D1_POINT_2F origin;
   origin.x = 0;
-  origin.y = 0;
+  origin.y = height; // This is an interesting place. Not sure why it has to be height. Maybe it's origin is bottom-left?
   mBitmapRenderTarget->BeginDraw();
   mBitmapRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
 
   /*
-  mBitmapRenderTarget->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+  mBitmapRenderTarget->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
   mBitmapRenderTarget->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
-  mBitmapRenderTarget->SetTextRenderingParams(mGrayscaleParams);
+  mBitmapRenderTarget->SetTextRenderingParams(mDefaultParams);
   */
 
   // Cannot use the same black brush created from a different render target
@@ -542,10 +542,12 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   hr = mBitmapRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black, 1.0f), &blackBrush);
   assert(hr == S_OK);
 
-  //mBitmapRenderTarget->DrawGlyphRun(origin, &glyphRun, blackBrush);
-  WCHAR msg[] = L"Test Things";
+  mBitmapRenderTarget->DrawGlyphRun(origin, &glyphRun, blackBrush);
+  /*
+  WCHAR msg[] = L"The Donald Trump Sucks";
   const int length = wcslen(msg);
   mBitmapRenderTarget->DrawTextW(msg, length, mTextFormat, D2D1::RectF(0, 0, width, height), blackBrush);
+  */
 
   hr = mBitmapRenderTarget->EndDraw();
   assert (hr == S_OK);
@@ -579,7 +581,8 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   assert (buffer_width * buffer_height * 4 == buffer_size);
 
   BYTE* drawn_glyph = BlendRaw(buffer_ptr, buffer_width, buffer_height);
-  DrawBitmap(drawn_glyph, buffer_width, buffer_height, 300, 300, bounds);
+
+  DrawBitmap(drawn_glyph, buffer_width, buffer_height, x, y, bounds);
 
   blackBrush->Release();
   readback->Release();
@@ -722,7 +725,7 @@ void D2DSetup::DrawWithMask()
   CreateGlyphRunAnalysis(d2dGlyphRun, fontFace, d2dMessage);
   DrawTextWithD2D(d2dGlyphRun, x, y, mCustomParams, true, D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
 
-  WCHAR grayscaleMessage[] = L"Grayscale Bitmap Running";
+  WCHAR grayscaleMessage[] = L"The Donald Trump Sucks Bitmap";
   DWRITE_GLYPH_RUN grayscaleRun;
   CreateGlyphRunAnalysis(grayscaleRun, fontFace, grayscaleMessage);
   DrawGrayscaleWithBitmap(grayscaleRun, x, y + 20);
