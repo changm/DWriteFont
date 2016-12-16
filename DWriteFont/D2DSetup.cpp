@@ -223,7 +223,7 @@ IDWriteFontFace* D2DSetup::GetFontFace()
   return fontFace;
 }
 
-void D2DSetup::CreateGlyphRun(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontFace, WCHAR message[])
+void D2DSetup::CreateGlyphRun(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontFace, WCHAR message[], float aScale)
 {
   //static const WCHAR message[] = L"Hello World Glyph";
   const int length = wcslen(message);
@@ -232,6 +232,7 @@ void D2DSetup::CreateGlyphRun(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontF
   UINT32* codePoints = new UINT32[length];
   DWRITE_GLYPH_METRICS* glyphMetrics = new DWRITE_GLYPH_METRICS[length];
   FLOAT* advances = new FLOAT[length];
+  float fontSize = mFontSize * aScale;
 
   for (int i = 0; i < length; i++) {
     codePoints[i] = message[i];
@@ -245,7 +246,7 @@ void D2DSetup::CreateGlyphRun(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontF
 
   for (int i = 0; i < length; i++) {
     int advance = glyphMetrics[i].advanceWidth;
-    float realAdvance = ((float) advance * mFontSize) / fontMetrics.designUnitsPerEm;
+    float realAdvance = ((float) advance * fontSize) / fontMetrics.designUnitsPerEm;
     advances[i] = realAdvance;
   }
 
@@ -258,7 +259,7 @@ void D2DSetup::CreateGlyphRun(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontF
   glyphRun.glyphCount = length;
   glyphRun.glyphAdvances = advances;
   glyphRun.fontFace = fontFace;
-  glyphRun.fontEmSize = mFontSize;
+  glyphRun.fontEmSize = fontSize;
   glyphRun.bidiLevel = 0;
   glyphRun.glyphIndices = glyphIndices;
   glyphRun.isSideways = FALSE;
@@ -470,6 +471,7 @@ void D2DSetup::CreateBitmap(ID2D1RenderTarget* aRenderTarget, ID2D1Bitmap** aOut
   float scale_factor = mDpiX / 96;
 
   D2D1_SIZE_U bitmapSize = D2D1::SizeU(width, height);
+  //D2D1_SIZE_U bitmapSize = D2D1::SizeU(width, height);
   HRESULT hr;
   
   if (aSource) {
@@ -487,12 +489,14 @@ void D2DSetup::DrawBitmap(BYTE* image, float width, float height, int x, int y, 
   uint32_t stride = width * 4;
   CreateBitmap(mRenderTarget, &bitmap, width, height, image, width * 4);
 
+  D2D1_SIZE_F bitmapSize = bitmap->GetSize();
+
   // Finally draw the bitmap somewhere
   D2D1_RECT_F destRect;
-  destRect.left = x + bounds.left;
-  destRect.right = x + bounds.right;
-  destRect.top = y + bounds.top;
-  destRect.bottom = y + bounds.bottom;
+  destRect.left = x;
+  destRect.right = x + bitmapSize.width;
+  destRect.top = y;
+  destRect.bottom = y + bitmapSize.height;
 
   float opacity = 1.0;
   mRenderTarget->DrawBitmap(bitmap, &destRect, opacity);
@@ -511,7 +515,7 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   assert(width > 0);
   assert(height > 0);
   
-  // Ugly DPI fix here.
+  // Ugly DPI fix here, but this still really isn't right :/.
   uint32_t bitmap_width = (uint32_t)width * 2;
   uint32_t bitmap_height = (uint32_t)height * 2;
   HRESULT hr = this->mWICFactory->CreateBitmap(bitmap_width,
@@ -689,7 +693,7 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool use
 
   float width = (bounds.right - bounds.left);
   float height = (bounds.bottom - bounds.top);
-  int bufferSize = width * height * 3 * 2;
+  int bufferSize = width * height * 3;
   BYTE* image = (BYTE*)malloc(bufferSize);
   memset(image, 0xFF, bufferSize);
 
@@ -775,11 +779,16 @@ void D2DSetup::DrawWithMask()
   DrawTextWithD2D(d2dGlyphRun, x, y, mDefaultParams);
   */
 
-  WCHAR d2dMessage[] = L"The Donald Trump Sucks d2d grayscale";
+  WCHAR d2dMessage[] = L"The Donald Trump D2D";
   DWRITE_GLYPH_RUN d2dGlyphRun;
   CreateGlyphRun(d2dGlyphRun, fontFace, d2dMessage);
-  //DrawTextWithD2D(d2dGlyphRun, x, y, mCustomParams, true, D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
-  DrawWithBitmap(d2dGlyphRun, x, y + 40, false);
+  DrawTextWithD2D(d2dGlyphRun, x, y, mCustomParams);
+
+
+  WCHAR bitmapMessage[] = L"The Donald Trump Bitmap";
+  DWRITE_GLYPH_RUN bitmapGlyphRun;
+  CreateGlyphRun(bitmapGlyphRun, fontFace, bitmapMessage, 2.0);
+  DrawWithBitmap(bitmapGlyphRun, x, y + 20, true, true);
 
   /*
   WCHAR grayscaleMessage[] = L"The Donald Trump Sucks Bitmap";

@@ -41,7 +41,7 @@ private:
     SkMaskGamma::PreBlend CreateGdiLUT();
 
     IDWriteFontFace* GetFontFace();
-    void CreateGlyphRun(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontFace, WCHAR message[]);
+    void CreateGlyphRun(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontFace, WCHAR message[], float aScale = 1.0);
 
     BYTE* ConvertToBGRA(BYTE* aRGB, int width, int height, bool useLUT, bool convert = false, bool useGDILUT = false);
     BYTE* BlendGrayscale(BYTE* aRGB, int width, int height);
