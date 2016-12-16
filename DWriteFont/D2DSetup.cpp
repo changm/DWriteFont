@@ -517,8 +517,15 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
       &mWICBitmap);
   assert (hr == S_OK);
 
+  float dpiX;
+  float dpiY;
+  mFactory->GetDesktopDpi(&dpiX, &dpiY);
+
   D2D1_RENDER_TARGET_PROPERTIES properties = D2D1::RenderTargetProperties();
   properties.type = D2D1_RENDER_TARGET_TYPE_SOFTWARE;
+  //properties.dpiX = dpiX;
+  //properties.dpiY = dpiY;
+
   // Known formats here - https://msdn.microsoft.com/en-us/library/windows/desktop/dd756766(v=vs.85).aspx
   properties.pixelFormat = D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED);
 
@@ -526,10 +533,11 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   assert (hr == S_OK);
 
   D2D1_POINT_2F origin;
-  origin.x = 0;
-  origin.y = height; // This is an interesting place. Not sure why it has to be height. Maybe it's origin is bottom-left?
+  origin.x = -bounds.left;
+  origin.y = -bounds.top; // This is an interesting place. Not sure why it has to be height. Maybe it's origin is bottom-left?
   mBitmapRenderTarget->BeginDraw();
   mBitmapRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
+  //mBitmapRenderTarget->SetTransform(D2D1::Matrix3x2F::Scale(0.5, 0.5));
 
   /*
   mBitmapRenderTarget->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
