@@ -427,44 +427,32 @@ BYTE* D2DSetup::BlendGrayscale(BYTE* aRGB, int width, int height)
   BYTE* bitmapImage = (BYTE*)malloc(size);
   memset(bitmapImage, 0x00, size);
 
+  const uint8_t* tableG = this->fPreBlend.fG;
+
   for (int y = 0; y < height; y++) {
-    int sourceHeight = y * width;  // expect 3 bytes per pixel
+    int sourceHeight = y * width * 3;  // expect 3 bytes per pixel
     int destHeight = y * width * 4;    // convert to 4 bytes per pixel to add alpha opaque channel
 
     for (int i = 0; i < width; i++) {
       int destIndex = destHeight + (4 * i);
-      int srcIndex = sourceHeight + i;
+      int srcIndex = sourceHeight + (i * 3);
 
-      BYTE r = aRGB[srcIndex];
-      BYTE g = r;
-      BYTE b = r;
-
-      /*
       BYTE r = aRGB[srcIndex];
       BYTE g = aRGB[srcIndex + 1];
       BYTE b = aRGB[srcIndex + 2];
 
-      BYTE lut_r = sk_apply_lut_if<true>(r, tableR);
-      BYTE lut_g = sk_apply_lut_if<true>(g, tableG);
-      BYTE lut_b = sk_apply_lut_if<true>(b, tableB);
+      // This is what Skia does
+      int average = (r + g + b) / 3;
+      BYTE pixel = sk_apply_lut_if<true>(r, tableG);
+      pixel = Blend(0x00, 0xFF, pixel);
 
-      //BYTE average = (r + g + b) / 3;
-      //BYTE pixel = sk_apply_lut_if<true>(average, tableG);
-      BYTE pixel = (lut_r + lut_g + lut_b) / 3;
-      */
-
-      BYTE pixel = r;
-
-      r = Blend(0x00, 0xFF, pixel);
-      g = Blend(0x00, 0xFF, pixel);
-      b = Blend(0x00, 0xFF, pixel);
-
-      bitmapImage[destIndex] = r;
-      bitmapImage[destIndex + 1] = g;
-      bitmapImage[destIndex + 2] = b;
+      bitmapImage[destIndex] = pixel;
+      bitmapImage[destIndex + 1] = pixel;
+      bitmapImage[destIndex + 2] = pixel;
       bitmapImage[destIndex + 3] = 0xFF;
     }
   }
+
   return bitmapImage;
 }
 
@@ -521,6 +509,7 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   float dpiY;
   mFactory->GetDesktopDpi(&dpiX, &dpiY);
 
+  // Blurriness is still confusing
   D2D1_RENDER_TARGET_PROPERTIES properties = D2D1::RenderTargetProperties();
   properties.type = D2D1_RENDER_TARGET_TYPE_SOFTWARE;
   //properties.dpiX = dpiX;
@@ -534,7 +523,7 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
 
   D2D1_POINT_2F origin;
   origin.x = -bounds.left;
-  origin.y = -bounds.top; // This is an interesting place. Not sure why it has to be height. Maybe it's origin is bottom-left?
+  origin.y = -bounds.top;
   mBitmapRenderTarget->BeginDraw();
   mBitmapRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
   //mBitmapRenderTarget->SetTransform(D2D1::Matrix3x2F::Scale(0.5, 0.5));
@@ -551,6 +540,7 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   assert(hr == S_OK);
 
   mBitmapRenderTarget->DrawGlyphRun(origin, &glyphRun, blackBrush);
+
   /*
   WCHAR msg[] = L"The Donald Trump Sucks";
   const int length = wcslen(msg);
@@ -559,7 +549,6 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
 
   hr = mBitmapRenderTarget->EndDraw();
   assert (hr == S_OK);
-  
 
   // Now readback.
   IWICBitmapLock* readback;
@@ -597,19 +586,31 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   mBitmapRenderTarget->Release();
   mWICBitmap->Release();
 
+  mRenderTarget->EndDraw();
+}
 
-  /*
-  int bufferSize = width * height;
+void D2DSetup::DrawGrayscaleWithLUT(DWRITE_GLYPH_RUN& glyphRun, int x, int y) {
+  mRenderTarget->BeginDraw();
+
+  IDWriteGlyphRunAnalysis* analysis;
+  // The 1.0f could be pretty bad here since it's not accounting for DPI, every reference in gecko uses 1.0
+  HRESULT hr = mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL,
+                                                      DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL,
+                                                      DWRITE_MEASURING_MODE_NATURAL, 0.0f, 0.0f, &analysis);
+  RECT bounds;
+  analysis->GetAlphaTextureBounds(DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
+
+  float width = bounds.right - bounds.left;
+  float height = bounds.bottom - bounds.top;
+  int bufferSize = width * height * 3;
   BYTE* image = (BYTE*)malloc(bufferSize);
   memset(image, 0xFF, bufferSize);
 
-  hr = analysis->CreateAlphaTexture(DWRITE_TEXTURE_ALIASED_1x1, &bounds, image, bufferSize);
+  hr = analysis->CreateAlphaTexture(DWRITE_TEXTURE_TYPE::DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds, image, bufferSize);
   assert(hr == S_OK);
 
   BYTE* bitmapImage = BlendGrayscale(image, width, height);
-  //BYTE* bitmapImage = ConvertToRGBA(image, width, height, false, false, false);
   DrawBitmap(bitmapImage, width, height, x, y, bounds);
-  */
 
   mRenderTarget->EndDraw();
 }
@@ -625,14 +626,6 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool use
   }
 
   IDWriteGlyphRunAnalysis* analysis;
-  DWRITE_MATRIX fXform;
-  fXform.m11 = 1.0;
-  fXform.m12 = 0.0;
-  fXform.m21 = 0.0;
-  fXform.m22 = 1.0;
-  fXform.dx = 0;
-  fXform.dy = 0;
-
   // The 1.0f could be pretty bad here since it's not accounting for DPI, every reference in gecko uses 1.0
   HRESULT hr = mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, aRenderMode, aMeasureMode, 0.0f, 0.0f, &analysis);
   if (hr != S_OK) {
@@ -737,6 +730,11 @@ void D2DSetup::DrawWithMask()
   DWRITE_GLYPH_RUN grayscaleRun;
   CreateGlyphRunAnalysis(grayscaleRun, fontFace, grayscaleMessage);
   DrawGrayscaleWithBitmap(grayscaleRun, x, y + 20);
+
+  WCHAR grayscaleLUT[] = L"The Donald Trump Sucks Cleartype LUT";
+  DWRITE_GLYPH_RUN grayscaleLUTRun;
+  CreateGlyphRunAnalysis(grayscaleLUTRun, fontFace, grayscaleLUT);
+  DrawGrayscaleWithLUT(grayscaleLUTRun, x, y + 40);
 
 
   /*
