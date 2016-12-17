@@ -71,7 +71,8 @@ private:
                         IDWriteGlyphRunAnalysis** aOutAnalysis,
                         DWRITE_RENDERING_MODE aRenderMode = DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL,
                         DWRITE_MEASURING_MODE aMeasureMode = DWRITE_MEASURING_MODE_NATURAL);
-    float GetScaleFactor() { return mDpiX / 96.0; }
+    float GetScaleFactor() { return mDpiX / 96.0f; }
+    void PrintElapsedTime(LARGE_INTEGER aStart, LARGE_INTEGER aEnd, const char* aMsg);
 
     HWND mHWND;
     HDC mHDC;
@@ -91,7 +92,7 @@ private:
     IDWriteRenderingParams* mDefaultParams;
     IDWriteRenderingParams* mGDIParams;
     IDWriteRenderingParams* mGrayscaleParams;
-    int mFontSize;
+    float mFontSize;
 
     SkMaskGamma::PreBlend fPreBlend;
     SkMaskGamma::PreBlend fGdiPreBlend;
@@ -101,4 +102,6 @@ private:
 
     float mDpiX;
     float mDpiY;
+
+    LARGE_INTEGER mFrequency;
 };

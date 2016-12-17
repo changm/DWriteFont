@@ -63,7 +63,7 @@ void D2DSetup::Init()
   hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), reinterpret_cast<IUnknown**>(&mDwriteFactory));
   assert(hr == S_OK);
 
-  mFontSize = 13;
+  mFontSize = 13.0f;
   hr = mDwriteFactory->CreateTextFormat(L"Georgia", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, mFontSize, L"", &mTextFormat);
   assert(hr == S_OK);
 
@@ -102,6 +102,8 @@ void D2DSetup::Init()
   float grayscale = 0.0f;
   hr = mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, grayscale, mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_DEFAULT, &mGrayscaleParams);
   assert(hr == S_OK);
+
+  QueryPerformanceFrequency(&mFrequency);
 }
 
 D2DSetup::~D2DSetup()
@@ -116,6 +118,17 @@ D2DSetup::~D2DSetup()
   mDefaultParams->Release();
   mCustomParams->Release();
   mWICFactory->Release();
+}
+
+void D2DSetup::PrintElapsedTime(LARGE_INTEGER aStart, LARGE_INTEGER aEnd, const char* aMsg)
+{
+  LARGE_INTEGER elapsedTime;
+  elapsedTime.QuadPart = aEnd.QuadPart - aStart.QuadPart;
+
+  // Convert to microseconds
+  elapsedTime.QuadPart *= 1000000;
+  elapsedTime.QuadPart /= mFrequency.QuadPart;
+  printf("%s elapsed time is: %lld microseconds\n", aMsg, elapsedTime.QuadPart);
 }
 
 void D2DSetup::Clear()
@@ -133,7 +146,7 @@ void D2DSetup::DrawText(int x, int y, WCHAR message[])
   mRenderTarget->DrawTextW(message,
     length,
     mTextFormat,
-    D2D1::RectF(x, y - 17, 1000, 1000),
+    D2D1::RectF((float) x, y - 17.0f, 1000.0f, 1000.0f),
     mBlackBrush);
 
   mRenderTarget->EndDraw();
@@ -142,7 +155,7 @@ void D2DSetup::DrawText(int x, int y, WCHAR message[])
 void D2DSetup::PrintFonts(IDWriteFontCollection* aFontCollection)
 {
   UINT32 familyCount = aFontCollection->GetFontFamilyCount();
-  for (int i = 0; i < familyCount; i++) {
+  for (uint32_t i = 0; i < familyCount; i++) {
     IDWriteFontFamily* temp;
     aFontCollection->GetFontFamily(i, &temp);
 
@@ -151,7 +164,6 @@ void D2DSetup::PrintFonts(IDWriteFontCollection* aFontCollection)
 
     UINT32 index = 0;
     BOOL exists;
-    wchar_t localName[256];
     familyName->FindLocaleName(L"en-us", &index, &exists);
 
     UINT32 length = 0;
@@ -168,7 +180,7 @@ Blend(float src, float dst, float alpha) {
   float floatAlpha = alpha / 255;
   //return dst + ((src - dst) * alpha >> 8);
   float result = (src * floatAlpha) + (dst * (1 - floatAlpha));
-  return result;
+  return (int) result;
 }
 
 static inline int SkBlend32(int src, int dst, int alpha) {
@@ -271,8 +283,8 @@ void D2DSetup::DrawTextWithD2D(DWRITE_GLYPH_RUN& glyphRun, int x, int y,
                                D2D1_TEXT_ANTIALIAS_MODE aaMode)
 {
   D2D1_POINT_2F origin;
-  origin.x = x;
-  origin.y = y;
+  origin.x = (float)x;
+  origin.y = (float)y;
 
   mRenderTarget->BeginDraw();
   mRenderTarget->SetTextRenderingParams(aParams);
@@ -485,7 +497,7 @@ void D2DSetup::CreateBitmap(ID2D1RenderTarget* aRenderTarget, ID2D1Bitmap** aOut
 void D2DSetup::DrawBitmap(BYTE* image, float width, float height, int x, int y, RECT bounds)
 {
   ID2D1Bitmap* bitmap = nullptr;
-  uint32_t stride = width * 4;
+  uint32_t stride = (uint32_t)width * 4;
   CreateBitmap(mRenderTarget, &bitmap, width, height, image, width * 4);
 
   D2D1_SIZE_F bitmapSize = bitmap->GetSize();
@@ -506,6 +518,9 @@ void D2DSetup::DrawBitmap(BYTE* image, float width, float height, int x, int y, 
 void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
 {
   mRenderTarget->BeginDraw();
+
+  LARGE_INTEGER start;
+  QueryPerformanceCounter(&start);
 
   RECT bounds;
   IDWriteGlyphRunAnalysis* analysis;
@@ -589,6 +604,10 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   assert (hr == S_OK);
   assert (buffer_width * buffer_height * 4 == buffer_size);
 
+  LARGE_INTEGER end;
+  QueryPerformanceCounter(&end);
+  PrintElapsedTime(start, end, "BitmapRenderTarget");
+
   // TODO: I think we have to do the LUT gamma correction here too.
   //BYTE* drawn_glyph = BlitDirectly(buffer_ptr, buffer_width, buffer_height);
   DrawBitmap(buffer_ptr, width, height, x, y, bounds);
@@ -606,6 +625,9 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
 void D2DSetup::DrawGrayscaleWithLUT(DWRITE_GLYPH_RUN& glyphRun, int x, int y) {
   mRenderTarget->BeginDraw();
 
+  LARGE_INTEGER start;
+  QueryPerformanceCounter(&start);
+
   RECT bounds;
   BYTE* bits = GetAlphaTexture(glyphRun, bounds,
                                DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL,
@@ -614,6 +636,11 @@ void D2DSetup::DrawGrayscaleWithLUT(DWRITE_GLYPH_RUN& glyphRun, int x, int y) {
   float height = bounds.bottom - bounds.top;
 
   BYTE* bitmapImage = BlendSkiaGrayscale(bits, width, height);
+
+  LARGE_INTEGER end;
+  QueryPerformanceCounter(&end);
+  PrintElapsedTime(start, end, "Grayscale LUT");
+
   DrawBitmap(bitmapImage, width, height, x, y, bounds);
 
   free(bits);
@@ -645,8 +672,8 @@ BYTE* D2DSetup::GetAlphaTexture(DWRITE_GLYPH_RUN& aRun, RECT& aOutBounds,
 
   float scale = GetScaleFactor();
 
-  float width = aOutBounds.right - aOutBounds.left;
-  float height = aOutBounds.bottom - aOutBounds.top;
+  long width = aOutBounds.right - aOutBounds.left;
+  long height = aOutBounds.bottom - aOutBounds.top;
 
   int bufferSize = width * height * 3;
   BYTE* image = (BYTE*)malloc(bufferSize);
@@ -672,8 +699,8 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool use
 
   RECT bounds;
   BYTE* bits = GetAlphaTexture(glyphRun, bounds, aRenderMode, aMeasureMode);
-  float width = bounds.right - bounds.left;
-  float height = bounds.bottom - bounds.top;
+  long width = bounds.right - bounds.left;
+  long height = bounds.bottom - bounds.top;
 
   BYTE* bitmapImage = ConvertToBGRA(bits, width, height, useLUT, convert, useGDILUT);
   DrawBitmap(bitmapImage, width, height, x, y, bounds);
@@ -742,15 +769,21 @@ void D2DSetup::DrawWithMask()
   WCHAR d2dMessage[] = L"The Donald Trump D2D";
   DWRITE_GLYPH_RUN d2dGlyphRun;
   CreateGlyphRun(d2dGlyphRun, fontFace, d2dMessage);
-  DrawTextWithD2D(d2dGlyphRun, x, y, mGrayscaleParams);
+
+  LARGE_INTEGER start;
+  LARGE_INTEGER end;
+  QueryPerformanceCounter(&start);
+  DrawTextWithD2D(d2dGlyphRun, x, y, mCustomParams);
+  QueryPerformanceCounter(&end);
+  PrintElapsedTime(start, end, "D2D Render Text");
 
   WCHAR bitmapMessage[] = L"The Donald Trump Bitmap";
   DWRITE_GLYPH_RUN bitmapGlyphRun;
   // We have to scale when we draw with bitmaps but not with d2d. D2D handles the scale for us automatically.
   CreateGlyphRun(bitmapGlyphRun, fontFace, bitmapMessage, scale);
   //DrawWithBitmap(bitmapGlyphRun, x, y + 20, true, true);
-  DrawGrayscaleWithBitmap(bitmapGlyphRun, x, y + 20);
-  //DrawGrayscaleWithLUT(bitmapGlyphRun, x, y + 20);
+  DrawGrayscaleWithBitmap(bitmapGlyphRun, x, y + 40);
+  DrawGrayscaleWithLUT(bitmapGlyphRun, x, y + 20);
 
   /*
   WCHAR sym[] = L"The Donald Trump Sucks LUT";
