@@ -44,8 +44,8 @@ private:
     void CreateGlyphRun(DWRITE_GLYPH_RUN& glyphRun, IDWriteFontFace* fontFace, WCHAR message[], float aScale = 1.0);
 
     BYTE* ConvertToBGRA(BYTE* aRGB, int width, int height, bool useLUT, bool convert = false, bool useGDILUT = false);
-    BYTE* BlendGrayscale(BYTE* aRGB, int width, int height);
-    BYTE* BlendRaw(BYTE* aRGB, int width, int height);
+    BYTE* BlendSkiaGrayscale(BYTE* aRGB, int width, int height);
+    BYTE* BlitDirectly(BYTE* aRGB, int width, int height);
 
     void DrawBitmap(BYTE* image, float width, float height, int x, int y, RECT bounds);
 

@@ -395,7 +395,7 @@ BYTE* D2DSetup::ConvertToBGRA(BYTE* aRGB, int width, int height, bool useLUT, bo
   return bitmapImage;
 }
 
-BYTE* D2DSetup::BlendRaw(BYTE* aBGR, int width, int height)
+BYTE* D2DSetup::BlitDirectly(BYTE* aBGR, int width, int height)
 {
   int size = width * height * 4;
   BYTE* bitmapImage = (BYTE*)malloc(size);
@@ -425,7 +425,9 @@ BYTE* D2DSetup::BlendRaw(BYTE* aBGR, int width, int height)
   return bitmapImage;
 }
 
-BYTE* D2DSetup::BlendGrayscale(BYTE* aBGR, int width, int height)
+// This is what SKia does to convert Cleartype to Grayscale.
+// Basically takes each channel, averages it, and gamma corrects with the G channel.
+BYTE* D2DSetup::BlendSkiaGrayscale(BYTE* aBGR, int width, int height)
 {
   int size = width * height * 4;
   BYTE* bitmapImage = (BYTE*)malloc(size);
@@ -468,10 +470,7 @@ void D2DSetup::CreateBitmap(ID2D1RenderTarget* aRenderTarget, ID2D1Bitmap** aOut
   properties.dpiX = mDpiX;
   properties.dpiY = mDpiY;
 
-  float scale_factor = mDpiX / 96;
-
   D2D1_SIZE_U bitmapSize = D2D1::SizeU(width, height);
-  //D2D1_SIZE_U bitmapSize = D2D1::SizeU(width, height);
   HRESULT hr;
   
   if (aSource) {
@@ -500,6 +499,8 @@ void D2DSetup::DrawBitmap(BYTE* image, float width, float height, int x, int y, 
 
   float opacity = 1.0;
   mRenderTarget->DrawBitmap(bitmap, &destRect, opacity);
+
+  bitmap->Release();
 }
 
 void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
@@ -515,9 +516,8 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   assert(width > 0);
   assert(height > 0);
   
-  // Ugly DPI fix here, but this still really isn't right :/.
-  uint32_t bitmap_width = (uint32_t)width * 2;
-  uint32_t bitmap_height = (uint32_t)height * 2;
+  uint32_t bitmap_width = (uint32_t)width;
+  uint32_t bitmap_height = (uint32_t)height;
   HRESULT hr = this->mWICFactory->CreateBitmap(bitmap_width,
       bitmap_height,
       // This has to be the PBGRA format, which means already pre multiplied.
@@ -526,12 +526,15 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
       &mWICBitmap);
   assert (hr == S_OK);
 
-  // Blurriness is still confusing
   D2D1_RENDER_TARGET_PROPERTIES properties = D2D1::RenderTargetProperties();
   properties.type = D2D1_RENDER_TARGET_TYPE_SOFTWARE;
-  // Setting dpi here properly doesn't work also
-  properties.dpiX = mDpiX;
-  properties.dpiY = mDpiY;
+
+  // Gecko scales the font size and renders everything at 1.0 DPI instead.
+  // We do the same here. Render the font onto a 1.0 DPI but scales font size
+  // Then when we render back to the hardware render target, which is the proper
+  // scaled display.
+  properties.dpiX = 96;
+  properties.dpiY = 96;
 
   // Known formats here - https://msdn.microsoft.com/en-us/library/windows/desktop/dd756766(v=vs.85).aspx
   properties.pixelFormat = D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED);
@@ -540,16 +543,14 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   assert (hr == S_OK);
 
   D2D1_POINT_2F origin;
-  // Bounds fixed by changing the glyph run analysis to be font size * 2
   origin.x = -bounds.left;
   origin.y = -bounds.top;
   mBitmapRenderTarget->BeginDraw();
   mBitmapRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
-  /*
+
   mBitmapRenderTarget->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
   mBitmapRenderTarget->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
-  mBitmapRenderTarget->SetTextRenderingParams(mDefaultParams);
-  */
+  mBitmapRenderTarget->SetTextRenderingParams(mGrayscaleParams);
 
   // Cannot use the same black brush created from a different render target
   ID2D1SolidColorBrush* blackBrush;
@@ -557,12 +558,6 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   assert(hr == S_OK);
 
   mBitmapRenderTarget->DrawGlyphRun(origin, &glyphRun, blackBrush);
-
-  /*
-  WCHAR msg[] = L"The Donald Trump Sucks";
-  const int length = wcslen(msg);
-  mBitmapRenderTarget->DrawTextW(msg, length, mTextFormat, D2D1::RectF(0, 0, width, height), blackBrush);
-  */
 
   hr = mBitmapRenderTarget->EndDraw();
   assert (hr == S_OK);
@@ -594,14 +589,16 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
   assert (hr == S_OK);
   assert (buffer_width * buffer_height * 4 == buffer_size);
 
-  BYTE* drawn_glyph = BlendRaw(buffer_ptr, buffer_width, buffer_height);
-
-  DrawBitmap(drawn_glyph, buffer_width, buffer_height, x, y, bounds);
+  // TODO: I think we have to do the LUT gamma correction here too.
+  //BYTE* drawn_glyph = BlitDirectly(buffer_ptr, buffer_width, buffer_height);
+  DrawBitmap(buffer_ptr, width, height, x, y, bounds);
 
   blackBrush->Release();
   readback->Release();
   mBitmapRenderTarget->Release();
   mWICBitmap->Release();
+
+  //free(drawn_glyph);
 
   mRenderTarget->EndDraw();
 }
@@ -609,27 +606,17 @@ void D2DSetup::DrawGrayscaleWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y)
 void D2DSetup::DrawGrayscaleWithLUT(DWRITE_GLYPH_RUN& glyphRun, int x, int y) {
   mRenderTarget->BeginDraw();
 
-  IDWriteGlyphRunAnalysis* analysis;
-  // The 1.0f could be pretty bad here since it's not accounting for DPI, every reference in gecko uses 1.0
-  HRESULT hr = mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL,
-                                                      DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL,
-                                                      DWRITE_MEASURING_MODE_NATURAL, 0.0f, 0.0f, &analysis);
   RECT bounds;
-  analysis->GetAlphaTextureBounds(DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
-
+  BYTE* bits = GetAlphaTexture(glyphRun, bounds,
+                               DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL,
+                               DWRITE_MEASURING_MODE_NATURAL);
   float width = bounds.right - bounds.left;
   float height = bounds.bottom - bounds.top;
-  int bufferSize = width * height * 3;
-  BYTE* image = (BYTE*)malloc(bufferSize);
-  memset(image, 0xFF, bufferSize);
 
-  hr = analysis->CreateAlphaTexture(DWRITE_TEXTURE_TYPE::DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds, image, bufferSize);
-  assert(hr == S_OK);
-
-  BYTE* bitmapImage = BlendGrayscale(image, width, height);
+  BYTE* bitmapImage = BlendSkiaGrayscale(bits, width, height);
   DrawBitmap(bitmapImage, width, height, x, y, bounds);
 
-  free(image);
+  free(bits);
   free(bitmapImage);
   mRenderTarget->EndDraw();
 }
@@ -639,8 +626,8 @@ void D2DSetup::GetGlyphBounds(DWRITE_GLYPH_RUN& aRun, RECT& aOutBounds,
                               DWRITE_RENDERING_MODE aRenderMode,
                               DWRITE_MEASURING_MODE aMeasureMode)
 {
-  // Surprisingly, we don't have to account for the dpi here in the glyph run analysis, we do that in the bitmap
-  // instead.
+  // Surprisingly, we don't have to account for the dpi here in the glyph run analysis,
+  // we do that in the bitmap and render target instead.
   HRESULT hr = mDwriteFactory->CreateGlyphRunAnalysis(&aRun, 1.0f, nullptr, aRenderMode,
                                                       aMeasureMode, 0.0f, 0.0f, aOutAnalysis);
   assert(hr == S_OK);
@@ -687,39 +674,6 @@ void D2DSetup::DrawWithBitmap(DWRITE_GLYPH_RUN& glyphRun, int x, int y, bool use
   BYTE* bits = GetAlphaTexture(glyphRun, bounds, aRenderMode, aMeasureMode);
   float width = bounds.right - bounds.left;
   float height = bounds.bottom - bounds.top;
-
-  /*
-  IDWriteGlyphRunAnalysis* analysis;
-  HRESULT hr = mDwriteFactory->CreateGlyphRunAnalysis(&glyphRun, 1.0f, NULL, aRenderMode, aMeasureMode, 0.0f, 0.0f, &analysis);
-  assert(hr == S_OK);
-
-  RECT bounds;
-  analysis->GetAlphaTextureBounds(DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
-
-  float width = (bounds.right - bounds.left);
-  float height = (bounds.bottom - bounds.top);
-  int bufferSize = width * height * 3;
-  BYTE* image = (BYTE*)malloc(bufferSize);
-  memset(image, 0xFF, bufferSize);
-
-  // DWRITE_TEXTURE_CLEARTYPE uses RGB, but we use BGR everywhere else.
-  hr = analysis->CreateAlphaTexture(DWRITE_TEXTURE_TYPE::DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds, image, bufferSize);
-  assert(hr == S_OK);
-
-  /*
-  printf("Alpha texture\n");
-  for (int i = 0; i < (int)height; i++) {
-    for (int j = 0; j < (int)width * 3; j += 3) {
-      int row = i * width;
-      printf("(%u,%u,%u) ",
-        image[row + j],
-        image[row + j + 1],
-        image[row + j + 2]
-      );
-    }
-    printf("\n");
-  }
-  */
 
   BYTE* bitmapImage = ConvertToBGRA(bits, width, height, useLUT, convert, useGDILUT);
   DrawBitmap(bitmapImage, width, height, x, y, bounds);
@@ -788,27 +742,15 @@ void D2DSetup::DrawWithMask()
   WCHAR d2dMessage[] = L"The Donald Trump D2D";
   DWRITE_GLYPH_RUN d2dGlyphRun;
   CreateGlyphRun(d2dGlyphRun, fontFace, d2dMessage);
-  DrawTextWithD2D(d2dGlyphRun, x, y, mCustomParams);
-
+  DrawTextWithD2D(d2dGlyphRun, x, y, mGrayscaleParams);
 
   WCHAR bitmapMessage[] = L"The Donald Trump Bitmap";
   DWRITE_GLYPH_RUN bitmapGlyphRun;
   // We have to scale when we draw with bitmaps but not with d2d. D2D handles the scale for us automatically.
   CreateGlyphRun(bitmapGlyphRun, fontFace, bitmapMessage, scale);
-  DrawWithBitmap(bitmapGlyphRun, x, y + 20, true, true);
-
-  /*
-  WCHAR grayscaleMessage[] = L"The Donald Trump Sucks Bitmap";
-  DWRITE_GLYPH_RUN grayscaleRun;
-  CreateGlyphRun(grayscaleRun, fontFace, grayscaleMessage);
-  DrawGrayscaleWithBitmap(grayscaleRun, x, y + 20);
-
-  /*
-  WCHAR grayscaleLUT[] = L"The Donald Trump Sucks Cleartype LUT";
-  DWRITE_GLYPH_RUN grayscaleLUTRun;
-  CreateGlyphRunAnalysis(grayscaleLUTRun, fontFace, grayscaleLUT);
-  DrawGrayscaleWithLUT(grayscaleLUTRun, x, y + 40);
-
+  //DrawWithBitmap(bitmapGlyphRun, x, y + 20, true, true);
+  DrawGrayscaleWithBitmap(bitmapGlyphRun, x, y + 20);
+  //DrawGrayscaleWithLUT(bitmapGlyphRun, x, y + 20);
 
   /*
   WCHAR sym[] = L"The Donald Trump Sucks LUT";
