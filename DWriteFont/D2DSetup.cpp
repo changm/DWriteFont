@@ -1,12 +1,12 @@
 
 #include "stdafx.h"
 #include "D2DSetup.h"
-#include <d2d1.h>
-#include <d2d1helper.h>
 #include <assert.h>
 #include <stdio.h>
 #include "comdef.h"
 #include <iostream>
+#include <d3d10_1.h>
+#include <D2d1_1.h>
 
 #define SK_A32_SHIFT 24
 #define SK_R32_SHIFT 16
@@ -106,6 +106,90 @@ void D2DSetup::Init()
   assert(hr == S_OK);
 
   QueryPerformanceFrequency(&mFrequency);
+
+  InitD3D();
+}
+
+void
+D2DSetup::InitD3D()
+{
+  // This flag adds support for surfaces with a different color channel ordering than the API default.
+  // You need it for compatibility with Direct2D.
+  UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+
+  // This array defines the set of DirectX hardware feature levels this app  supports.
+  // The ordering is important and you should  preserve it.
+  // Don't forget to declare your app's minimum required feature level in its
+  // description.  All apps are assumed to support 9.1 unless otherwise stated.
+  D3D_FEATURE_LEVEL featureLevels[] =
+  {
+    D3D_FEATURE_LEVEL_11_1,
+    D3D_FEATURE_LEVEL_11_0,
+    D3D_FEATURE_LEVEL_10_1,
+    D3D_FEATURE_LEVEL_10_0,
+    D3D_FEATURE_LEVEL_9_3,
+    D3D_FEATURE_LEVEL_9_2,
+    D3D_FEATURE_LEVEL_9_1
+  };
+
+  DXGI_SWAP_CHAIN_DESC sdc;
+  memset(&sdc, 0, sizeof(sdc));
+  sdc.BufferCount = 1;
+  sdc.BufferDesc.Width = 1024;
+  sdc.BufferDesc.Height = 1024;
+  sdc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  sdc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+  sdc.OutputWindow = mHWND;
+  sdc.Windowed = true;
+  sdc.SampleDesc.Count = 1;
+  sdc.SampleDesc.Quality = 0;
+
+
+  HRESULT hr = D3D11CreateDeviceAndSwapChain(nullptr,
+    D3D_DRIVER_TYPE_HARDWARE,
+    0,
+    creationFlags,
+    featureLevels,
+    ARRAYSIZE(featureLevels),
+    D3D11_SDK_VERSION,
+    &sdc,
+    &mSwapChain,
+    &mDevice,
+    nullptr,
+    &mDeviceContext);
+
+  if (hr != S_OK) {
+    _com_error err(hr);
+    LPCTSTR errMsg = err.ErrorMessage();
+    std::wcout << errMsg;
+  }
+  assert(hr == S_OK);
+
+  // Create d2d things now
+  IDXGIDevice* dxgiDevice;
+  mDevice->QueryInterface(&dxgiDevice);
+
+  hr = mFactory->CreateDevice(dxgiDevice, &md2d_device);
+  assert(hr == S_OK);
+
+  hr = md2d_device->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_ENABLE_MULTITHREADED_OPTIMIZATIONS, &mDC);
+  assert(hr == S_OK);
+
+  // Tell teh device context to draw to the backbuffer of the d3d back buffer
+  // specify the desired bitmap properties
+  D2D1_BITMAP_PROPERTIES1 bp;
+  bp.pixelFormat.format = DXGI_FORMAT_B8G8R8A8_UNORM;
+  bp.pixelFormat.alphaMode = D2D1_ALPHA_MODE_IGNORE;
+  bp.dpiX = 96.0f;
+  bp.dpiY = 96.0f;
+  bp.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET |
+    D2D1_BITMAP_OPTIONS_CANNOT_DRAW;
+  bp.colorContext = nullptr;
+
+  // Direct2D needs the dxgi version of the back buffer
+  
+  IDXGISurface* dxgiBuffer;
+
 }
 
 D2DSetup::~D2DSetup()
@@ -120,6 +204,12 @@ D2DSetup::~D2DSetup()
   mDefaultParams->Release();
   mCustomParams->Release();
   mWICFactory->Release();
+
+  mDevice->Release();
+  mDeviceContext->Release();
+  md2d_device->Release();
+
+  mSwapChain->Release();
 }
 
 void D2DSetup::PrintElapsedTime(LARGE_INTEGER aStart, LARGE_INTEGER aEnd, const char* aMsg)
@@ -803,19 +893,6 @@ void D2DSetup::DrawWithMask()
 void
 D2DSetup::DrawLuminanceEffect()
 {
-  // Create our factory
-  IWICImagingFactory *pFactory = NULL;
-  HRESULT hr = CoCreateInstance(
-    CLSID_WICImagingFactory,
-    NULL,
-    CLSCTX_INPROC_SERVER,
-    IID_IWICImagingFactory,
-    (LPVOID*)&pFactory
-  );
-
-  assert(hr == S_OK);
-
-
   // Read the image from disk
   IWICBitmapDecoder *pDecoder = NULL;
   IWICBitmapFrameDecode *pSource = NULL;
@@ -824,7 +901,7 @@ D2DSetup::DrawLuminanceEffect()
   IWICBitmapScaler *pScaler = NULL;
   PCWSTR uri = L"C:\\firefox.png";
 
-  hr = pFactory->CreateDecoderFromFilename(
+  HRESULT hr = mWICFactory->CreateDecoderFromFilename(
     uri,
     NULL,
     GENERIC_READ,
@@ -843,7 +920,7 @@ D2DSetup::DrawLuminanceEffect()
   assert(hr == S_OK);
 
   // convert it to someting d2d can use
-  hr = pFactory->CreateFormatConverter(&pConverter);
+  hr = mWICFactory->CreateFormatConverter(&pConverter);
   assert(hr == S_OK);
 
   // Convert the image format to 32bppPBGRA
@@ -870,21 +947,24 @@ D2DSetup::DrawLuminanceEffect()
   destRect.right = size.width;
   destRect.top = size.height;
 
+  // Let's try the actual luminance effect now
+  
+  mDC->BeginDraw();
+  mDC->DrawBitmap(bitmap, destRect, 1.0);
+  mDC->EndDraw();
+
+  /*
   mRenderTarget->BeginDraw();
   mRenderTarget->DrawBitmap(bitmap, destRect, 1.0);
   mRenderTarget->EndDraw();
+  */
 
   ID2D1Bitmap* tmpBitmap = nullptr;
-  //uint32_t stride = (uint32_t)width * 4;
-  //CreateBitmap(mRenderTarget, &bitmap, width, height, image, width * 4);
 
-  if (pFactory) {
-    pConverter->Release();
-    pSource->Release();
-    pDecoder->Release();
-    pFactory->Release();
-    bitmap->Release();
-  }
+  pConverter->Release();
+  pSource->Release();
+  pDecoder->Release();
+  bitmap->Release();
 }
 
 SkMaskGamma::PreBlend D2DSetup::CreateLUT()

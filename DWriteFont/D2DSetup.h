@@ -7,6 +7,7 @@
 #include <d2d1.h>
 #include "SkMaskGamma.h"
 #include <Wincodec.h>
+#include <d2d1_1.h>
 
 //The following typedef hides from the rest of the implementation the number of
 //most significant bits to consider when creating mask gamma tables. Two bits
@@ -31,6 +32,7 @@ public:
 
     void DrawText(int x, int y, WCHAR message[]);
     void Init();
+    void InitD3D();
     void DrawWithMask();
     void AlternateText(int count);
     void PrintFonts(IDWriteFontCollection* aFontCollection);
@@ -78,9 +80,12 @@ private:
     HWND mHWND;
     HDC mHDC;
 
-    ID2D1Factory* mFactory;
+    ID2D1Factory1* mFactory;
     ID2D1HwndRenderTarget* mRenderTarget;
     ID2D1RenderTarget* mBitmapRenderTarget;
+
+    ID2D1Device* md2d_device;
+    ID2D1DeviceContext* mDC;
 
     IDWriteFactory* mDwriteFactory;
     IDWriteTextFormat* mTextFormat;
@@ -105,4 +110,9 @@ private:
     float mDpiY;
 
     LARGE_INTEGER mFrequency;
+
+    // D2D 11 things
+    ID3D11Device* mDevice;
+    ID3D11DeviceContext* mDeviceContext;
+    IDXGISwapChain* mSwapChain;
 };
