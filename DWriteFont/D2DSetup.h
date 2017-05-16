@@ -35,6 +35,7 @@ public:
     void AlternateText(int count);
     void PrintFonts(IDWriteFontCollection* aFontCollection);
     void Clear();
+    void DrawLuminanceEffect();
 
 private:
     SkMaskGamma::PreBlend CreateLUT();

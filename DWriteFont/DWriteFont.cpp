@@ -136,7 +136,8 @@ static void PaintText(HWND aHWND, HDC aHDC)
 {
 	D2DSetup d2d(aHWND, aHDC);
 	d2d.Clear();
-	d2d.DrawWithMask();
+  d2d.DrawLuminanceEffect();
+	//d2d.DrawWithMask();
 }
 
 static void AlternateText(HWND aHWND, HDC aHDC, int count)

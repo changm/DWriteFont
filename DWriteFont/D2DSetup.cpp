@@ -5,6 +5,8 @@
 #include <d2d1helper.h>
 #include <assert.h>
 #include <stdio.h>
+#include "comdef.h"
+#include <iostream>
 
 #define SK_A32_SHIFT 24
 #define SK_R32_SHIFT 16
@@ -780,22 +782,109 @@ void D2DSetup::DrawWithMask()
   WCHAR bitmapMessage[] = L"The Donald Trump Bitmap";
   DWRITE_GLYPH_RUN bitmapGlyphRun;
   // We have to scale when we draw with bitmaps but not with d2d. D2D handles the scale for us automatically.
-  CreateGlyphRun(bitmapGlyphRun, fontFace, bitmapMessage, scale);
+  //CreateGlyphRun(bitmapGlyphRun, fontFace, bitmapMessage, scale);
   //DrawWithBitmap(bitmapGlyphRun, x, y + 20, true, true);
-  DrawGrayscaleWithBitmap(bitmapGlyphRun, x, y + 40);
-  DrawGrayscaleWithLUT(bitmapGlyphRun, x, y + 20);
+  //DrawGrayscaleWithBitmap(bitmapGlyphRun, x, y + 40);
+  //DrawGrayscaleWithLUT(bitmapGlyphRun, x, y + 20);
 
-  /*
-  WCHAR sym[] = L"The Donald Trump Sucks LUT";
+  WCHAR sym[] = L" T";
   DWRITE_GLYPH_RUN symRun;
-  CreateGlyphRunAnalysis(symRun, fontFace, sym);
+  CreateGlyphRun(symRun, fontFace, sym);
   DrawWithBitmap(symRun, x, y + 20, true, true, DWRITE_RENDERING_MODE_GDI_CLASSIC);
 
+  /*
   WCHAR gdi[] = L"The Donald Trump Sucks LUT";
   DWRITE_GLYPH_RUN gdiRun;
   CreateGlyphRunAnalysis(gdiRun, fontFace, gdi);
   DrawWithBitmap(gdiRun, x, y + 60, true, true);
   */
+}
+
+void
+D2DSetup::DrawLuminanceEffect()
+{
+  // Create our factory
+  IWICImagingFactory *pFactory = NULL;
+  HRESULT hr = CoCreateInstance(
+    CLSID_WICImagingFactory,
+    NULL,
+    CLSCTX_INPROC_SERVER,
+    IID_IWICImagingFactory,
+    (LPVOID*)&pFactory
+  );
+
+  assert(hr == S_OK);
+
+
+  // Read the image from disk
+  IWICBitmapDecoder *pDecoder = NULL;
+  IWICBitmapFrameDecode *pSource = NULL;
+  IWICStream *pStream = NULL;
+  IWICFormatConverter *pConverter = NULL;
+  IWICBitmapScaler *pScaler = NULL;
+  PCWSTR uri = L"C:\\firefox.png";
+
+  hr = pFactory->CreateDecoderFromFilename(
+    uri,
+    NULL,
+    GENERIC_READ,
+    WICDecodeMetadataCacheOnLoad,
+    &pDecoder
+  );
+
+  if (hr != S_OK) {
+    _com_error err(hr);
+    LPCTSTR errMsg = err.ErrorMessage();
+    std::wcout << errMsg;
+  }
+
+  // Read the frame
+  hr = pDecoder->GetFrame(0, &pSource);
+  assert(hr == S_OK);
+
+  // convert it to someting d2d can use
+  hr = pFactory->CreateFormatConverter(&pConverter);
+  assert(hr == S_OK);
+
+  // Convert the image format to 32bppPBGRA
+  // (DXGI_FORMAT_B8G8R8A8_UNORM + D2D1_ALPHA_MODE_PREMULTIPLIED).
+  hr = pConverter->Initialize(
+    pSource,
+    GUID_WICPixelFormat32bppPBGRA,
+    WICBitmapDitherTypeNone,
+    NULL,
+    0.f,
+    WICBitmapPaletteTypeMedianCut
+  );
+  assert(hr == S_OK);
+
+  // Create a Direct2D bitmap from the WIC bitmap.
+  ID2D1Bitmap* bitmap;
+  hr = mRenderTarget->CreateBitmapFromWicBitmap(pConverter, &bitmap);
+  assert(hr == S_OK);
+
+  D2D1_SIZE_F size = mRenderTarget->GetSize();
+  D2D1_RECT_F destRect;
+  destRect.left = 0;
+  destRect.bottom = 0;
+  destRect.right = size.width;
+  destRect.top = size.height;
+
+  mRenderTarget->BeginDraw();
+  mRenderTarget->DrawBitmap(bitmap, destRect, 1.0);
+  mRenderTarget->EndDraw();
+
+  ID2D1Bitmap* tmpBitmap = nullptr;
+  //uint32_t stride = (uint32_t)width * 4;
+  //CreateBitmap(mRenderTarget, &bitmap, width, height, image, width * 4);
+
+  if (pFactory) {
+    pConverter->Release();
+    pSource->Release();
+    pDecoder->Release();
+    pFactory->Release();
+    bitmap->Release();
+  }
 }
 
 SkMaskGamma::PreBlend D2DSetup::CreateLUT()
