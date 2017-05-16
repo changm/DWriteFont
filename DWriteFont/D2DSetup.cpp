@@ -175,21 +175,30 @@ D2DSetup::InitD3D()
   hr = md2d_device->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_ENABLE_MULTITHREADED_OPTIMIZATIONS, &mDC);
   assert(hr == S_OK);
 
-  // Tell teh device context to draw to the backbuffer of the d3d back buffer
-  // specify the desired bitmap properties
-  D2D1_BITMAP_PROPERTIES1 bp;
-  bp.pixelFormat.format = DXGI_FORMAT_B8G8R8A8_UNORM;
-  bp.pixelFormat.alphaMode = D2D1_ALPHA_MODE_IGNORE;
-  bp.dpiX = 96.0f;
-  bp.dpiY = 96.0f;
-  bp.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET |
-    D2D1_BITMAP_OPTIONS_CANNOT_DRAW;
-  bp.colorContext = nullptr;
-
   // Direct2D needs the dxgi version of the back buffer
-  
   IDXGISurface* dxgiBuffer;
 
+  ID3D11Texture2D* pBackBuffer;
+
+  // Get a pointer to the back buffer
+  hr = mSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D),
+    (LPVOID*)&pBackBuffer);
+
+  // Create a render-target view
+  mDevice->CreateRenderTargetView(pBackBuffer, NULL,
+    &mView);
+
+  // Bind the view
+  mDeviceContext->OMSetRenderTargets(1, &mView, NULL);
+
+  D3D11_VIEWPORT vp;
+  vp.Width = 1024;
+  vp.Height = 1024;
+  vp.MinDepth = 0.0;
+  vp.MaxDepth = 1.0;
+  vp.TopLeftX = 0.0;
+  vp.TopLeftY = 0.0;
+  mDeviceContext->RSSetViewports(1, &vp);
 }
 
 D2DSetup::~D2DSetup()
@@ -210,6 +219,7 @@ D2DSetup::~D2DSetup()
   md2d_device->Release();
 
   mSwapChain->Release();
+  mView->Release();
 }
 
 void D2DSetup::PrintElapsedTime(LARGE_INTEGER aStart, LARGE_INTEGER aEnd, const char* aMsg)
@@ -948,18 +958,23 @@ D2DSetup::DrawLuminanceEffect()
   destRect.top = size.height;
 
   // Let's try the actual luminance effect now
-  
+  D2D1_SIZE_U bitmapSize;
+  bitmapSize.width = size.width;
+  bitmapSize.height = size.height;
+
+  ID2D1Bitmap* tmpBitmap;
+  D2D1_BITMAP_PROPERTIES properties = { DXGI_FORMAT_B8G8R8A8_UNORM,  D2D1_ALPHA_MODE_PREMULTIPLIED };
+  hr = mDC->CreateBitmap(bitmapSize, properties, &tmpBitmap);
+  assert(hr == S_OK);
+
   mDC->BeginDraw();
-  mDC->DrawBitmap(bitmap, destRect, 1.0);
+  mDC->FillRectangle(destRect, mBlackBrush);
   mDC->EndDraw();
+  mDC->Flush();
 
-  /*
-  mRenderTarget->BeginDraw();
-  mRenderTarget->DrawBitmap(bitmap, destRect, 1.0);
-  mRenderTarget->EndDraw();
-  */
-
-  ID2D1Bitmap* tmpBitmap = nullptr;
+  //mRenderTarget->BeginDraw();
+  //mRenderTarget->DrawBitmap(tmpBitmap, destRect, 1.0);
+  //mRenderTarget->EndDraw();
 
   pConverter->Release();
   pSource->Release();

@@ -115,4 +115,5 @@ private:
     ID3D11Device* mDevice;
     ID3D11DeviceContext* mDeviceContext;
     IDXGISwapChain* mSwapChain;
+    ID3D11RenderTargetView* mView;
 };
