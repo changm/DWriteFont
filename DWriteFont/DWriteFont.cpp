@@ -135,7 +135,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 static void PaintText(HWND aHWND, HDC aHDC)
 {
 	D2DSetup d2d(aHWND, aHDC);
-	d2d.Clear();
+	//d2d.Clear();
   d2d.DrawLuminanceEffect();
 	//d2d.DrawWithMask();
 }

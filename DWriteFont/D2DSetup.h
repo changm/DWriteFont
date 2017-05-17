@@ -33,11 +33,13 @@ public:
     void DrawText(int x, int y, WCHAR message[]);
     void Init();
     void InitD3D();
+    void InitD2D();
     void DrawWithMask();
     void AlternateText(int count);
     void PrintFonts(IDWriteFontCollection* aFontCollection);
     void Clear();
     void DrawLuminanceEffect();
+    void Present();
 
 private:
     SkMaskGamma::PreBlend CreateLUT();
@@ -116,4 +118,8 @@ private:
     ID3D11DeviceContext* mDeviceContext;
     IDXGISwapChain* mSwapChain;
     ID3D11RenderTargetView* mView;
+    IDXGIAdapter1* mAdapter;
+    IDXGIFactory1* mDxgiFactory;
+    IDXGISurface* mDxgiSurface;
+    ID2D1Bitmap1* mTargetBitmap;
 };

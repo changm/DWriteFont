@@ -8,6 +8,7 @@
 #include <d3d10_1.h>
 #include <D2d1_1.h>
 
+
 #define SK_A32_SHIFT 24
 #define SK_R32_SHIFT 16
 #define SK_G32_SHIFT 8
@@ -143,7 +144,7 @@ D2DSetup::InitD3D()
   sdc.Windowed = true;
   sdc.SampleDesc.Count = 1;
   sdc.SampleDesc.Quality = 0;
-
+  sdc.SwapEffect = DXGI_SWAP_EFFECT_SEQUENTIAL;
 
   HRESULT hr = D3D11CreateDeviceAndSwapChain(nullptr,
     D3D_DRIVER_TYPE_HARDWARE,
@@ -179,10 +180,38 @@ D2DSetup::InitD3D()
   IDXGISurface* dxgiBuffer;
 
   ID3D11Texture2D* pBackBuffer;
-
   // Get a pointer to the back buffer
   hr = mSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D),
     (LPVOID*)&pBackBuffer);
+  assert(hr == S_OK);
+
+  hr = pBackBuffer->QueryInterface(__uuidof(IDXGISurface),
+                              (LPVOID*)&mDxgiSurface);
+  assert(hr == S_OK);
+
+  // Setup D2D to hook into the back buffer, using our own bitmap properties fails woot?
+  D2D1_BITMAP_PROPERTIES1 bitmapProperties;
+  memset(&bitmapProperties, 0, sizeof(D2D1_BITMAP_PROPERTIES1));
+  bitmapProperties.dpiX = mDpiX;
+  bitmapProperties.dpiY = mDpiY;
+  bitmapProperties.pixelFormat = D2D1_PIXEL_FORMAT{ DXGI_FORMAT_R8G8B8A8_UNORM,  D2D1_ALPHA_MODE_PREMULTIPLIED };
+  bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS{ D2D1_BITMAP_OPTIONS_TARGET };
+  bitmapProperties.colorContext = nullptr;
+
+  /*
+  hr = mSwapChain->GetBuffer(0, IID_PPV_ARGS(&mDxgiSurface));
+  assert(hr == S_OK);
+  */
+
+  hr = mDC->CreateBitmapFromDxgiSurface(mDxgiSurface, nullptr, &mTargetBitmap);
+  if (hr != S_OK) {
+    _com_error err(hr);
+    LPCTSTR errMsg = err.ErrorMessage();
+    std::wcout << errMsg;
+  }
+  assert(hr == S_OK);
+
+  mDC->SetTarget(mTargetBitmap);
 
   // Create a render-target view
   mDevice->CreateRenderTargetView(pBackBuffer, NULL,
@@ -220,6 +249,11 @@ D2DSetup::~D2DSetup()
 
   mSwapChain->Release();
   mView->Release();
+
+  //mAdapter->Release();
+  //mDxgiFactory->Release();
+  mDxgiSurface->Release();
+  mTargetBitmap->Release();
 }
 
 void D2DSetup::PrintElapsedTime(LARGE_INTEGER aStart, LARGE_INTEGER aEnd, const char* aMsg)
@@ -901,8 +935,31 @@ void D2DSetup::DrawWithMask()
 }
 
 void
+D2DSetup::Present()
+{
+  mSwapChain->Present(0, 0);
+}
+
+void
 D2DSetup::DrawLuminanceEffect()
 {
+  mDC->BeginDraw();
+
+  D2D1_SIZE_F size = mTargetBitmap->GetSize();
+  D2D1_RECT_F destRect;
+  destRect.left = 0;
+  destRect.bottom = 0;
+  destRect.right = size.width;
+  destRect.top = size.height;
+
+  mDC->FillRectangle(destRect, mWhiteBrush);
+
+  mDC->EndDraw();
+  mDC->Flush();
+
+  //Present();
+
+  /*
   // Read the image from disk
   IWICBitmapDecoder *pDecoder = NULL;
   IWICBitmapFrameDecode *pSource = NULL;
@@ -980,6 +1037,7 @@ D2DSetup::DrawLuminanceEffect()
   pSource->Release();
   pDecoder->Release();
   bitmap->Release();
+  */
 }
 
 SkMaskGamma::PreBlend D2DSetup::CreateLUT()
