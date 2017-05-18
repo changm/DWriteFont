@@ -1087,6 +1087,7 @@ if (hr != S_OK) {
   assert(hr == S_OK);
   luminanceEffect->SetInput(0, imageBitmap);
 
+  /*
   ID2D1Effect* floodEffect;
   hr = mDC->CreateEffect(CLSID_D2D1Flood, &floodEffect);
   assert(hr == S_OK);
@@ -1097,12 +1098,13 @@ if (hr != S_OK) {
 
   compositeEffect->SetInputEffect(0, floodEffect);
   compositeEffect->SetInputEffect(1, luminanceEffect);
+  */
 
   // draw our image bitmap first
   mDC->BeginDraw();
 
   mDC->FillRectangle(destRect, mWhiteBrush);
-  mDC->DrawImage(compositeEffect);
+  mDC->DrawImage(luminanceEffect);
 
   mDC->EndDraw();
   mDC->Flush();
@@ -1113,8 +1115,8 @@ if (hr != S_OK) {
   imageBitmap->Release();
 
   luminanceEffect->Release();
-  floodEffect->Release();
-  compositeEffect->Release();
+  //floodEffect->Release();
+  //compositeEffect->Release();
 
   tmpBitmap->Release();
 
