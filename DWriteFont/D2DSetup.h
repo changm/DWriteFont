@@ -34,11 +34,14 @@ public:
     void InitD3D();
     void InitD2D();
     void DrawWithMask();
+    void CreateHardwareRenderTarget();
     void AlternateText(int count);
     void PrintFonts(IDWriteFontCollection* aFontCollection);
     void Clear();
     void DrawLuminanceEffect();
     void Present();
+    void CreateImageBrushes();
+    void InitDWrite();
 
 private:
     SkMaskGamma::PreBlend CreateLUT();

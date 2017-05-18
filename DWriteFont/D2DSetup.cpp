@@ -32,20 +32,9 @@ HMONITOR GetPrimaryMonitorHandle()
 
 void D2DSetup::Init()
 {
-  HRESULT hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &mFactory);
-  assert(hr == S_OK);
-
   InitD3D();
 
-  RECT clientRect;
-  GetClientRect(mHWND, &clientRect);
-
-  D2D1_SIZE_U size = D2D1::SizeU(
-    clientRect.right - clientRect.left,
-    clientRect.bottom - clientRect.top
-  );
-
-  hr = CoCreateInstance(
+  HRESULT hr = CoCreateInstance(
                         CLSID_WICImagingFactory,
                         NULL,
                         CLSCTX_INPROC_SERVER,
@@ -55,63 +44,28 @@ void D2DSetup::Init()
   assert(hr == S_OK);
   mFactory->GetDesktopDpi(&mDpiX, &mDpiY);
 
-  // Create a Direct2D render target.
-  /*
+  InitD2D();
+}
+
+void
+D2DSetup::CreateHardwareRenderTarget()
+{
+  RECT clientRect;
+  GetClientRect(mHWND, &clientRect);
+
+  D2D1_SIZE_U size = D2D1::SizeU(
+    clientRect.right - clientRect.left,
+    clientRect.bottom - clientRect.top
+  );
+
   D2D1_RENDER_TARGET_PROPERTIES properties = D2D1::RenderTargetProperties();
   properties.dpiX = mDpiX;
   properties.dpiY = mDpiY;
 
   D2D1_HWND_RENDER_TARGET_PROPERTIES hwndProperties = D2D1::HwndRenderTargetProperties(mHWND, size);
-  hr = mFactory->CreateHwndRenderTarget(&properties, &hwndProperties,
+  HRESULT hr = mFactory->CreateHwndRenderTarget(&properties, &hwndProperties,
                       &mRenderTarget);
   assert(hr == S_OK);
-  */
-
-  hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), reinterpret_cast<IUnknown**>(&mDwriteFactory));
-  assert(hr == S_OK);
-
-  mFontSize = 13.0f;
-  hr = mDwriteFactory->CreateTextFormat(L"Georgia", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, mFontSize, L"", &mTextFormat);
-  assert(hr == S_OK);
-
-  mTextFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
-  mTextFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
-
-  hr = mDC->CreateSolidColorBrush(D2D1::ColorF(0x404040, 1.0f), &mDarkBlackBrush);
-  hr = mDC->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black, 1.0f), &mBlackBrush);
-  hr = mDC->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White, 1.0f), &mWhiteBrush);
-  hr = mDC->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black, 0.0f), &mTransparentBlackBrush);
-  hr = mDC->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Red, 1.0F), &mRedBrush);
-
-  // Now we can play with params
-  mDC->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_DEFAULT);
-
-  IDWriteRenderingParams* defaultParams;
-  mDwriteFactory->CreateRenderingParams(&mDefaultParams);
-
-  IDWriteRenderingParams* customParams;
-  printf("Default param contrast is: %f, gamma: %f, render mode: %d, pixel geometry %d\n",
-      mDefaultParams->GetEnhancedContrast(),
-      mDefaultParams->GetGamma(),
-      mDefaultParams->GetRenderingMode(),
-      mDefaultParams->GetPixelGeometry());
-
-  float contrast = mDefaultParams->GetEnhancedContrast();
-  contrast = 1.0f;
-
-  mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, mDefaultParams->GetClearTypeLevel(), mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_DEFAULT, &mCustomParams);
-
-  DWRITE_PIXEL_GEOMETRY geometry = mDefaultParams->GetPixelGeometry();
-  mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, mDefaultParams->GetClearTypeLevel(), mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_GDI_CLASSIC, &mGDIParams);
-
-  IDWriteRenderingParams* monitorParams;
-  mDwriteFactory->CreateMonitorRenderingParams(GetPrimaryMonitorHandle(), &monitorParams);
-
-  float grayscale = 0.0f;
-  hr = mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, grayscale, mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_DEFAULT, &mGrayscaleParams);
-  assert(hr == S_OK);
-
-  QueryPerformanceFrequency(&mFrequency);
 }
 
 void
@@ -187,11 +141,74 @@ D2DSetup::CreateDXGIResources()
 void
 D2DSetup::CreateD2DDevices()
 {
-  HRESULT hr = mFactory->CreateDevice(mDxgiDevice, &md2d_device);
+  HRESULT hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &mFactory);
+  assert(hr == S_OK);
+
+  hr = mFactory->CreateDevice(mDxgiDevice, &md2d_device);
   assert(hr == S_OK);
 
   hr = md2d_device->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &mDC);
   assert(hr == S_OK);
+}
+
+void
+D2DSetup::CreateImageBrushes()
+{
+  mDC->CreateSolidColorBrush(D2D1::ColorF(0x404040, 1.0f), &mDarkBlackBrush);
+  mDC->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black, 1.0f), &mBlackBrush);
+  mDC->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White, 1.0f), &mWhiteBrush);
+  mDC->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black, 0.0f), &mTransparentBlackBrush);
+  mDC->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Red, 1.0F), &mRedBrush);
+}
+
+void
+D2DSetup::InitDWrite()
+{
+  HRESULT hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), reinterpret_cast<IUnknown**>(&mDwriteFactory));
+  assert(hr == S_OK);
+
+  mFontSize = 13.0f;
+  hr = mDwriteFactory->CreateTextFormat(L"Georgia", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, mFontSize, L"", &mTextFormat);
+  assert(hr == S_OK);
+
+  mTextFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+  mTextFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
+
+  // Now we can play with params
+  mDC->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_DEFAULT);
+
+  IDWriteRenderingParams* defaultParams;
+  mDwriteFactory->CreateRenderingParams(&mDefaultParams);
+
+  IDWriteRenderingParams* customParams;
+  printf("Default param contrast is: %f, gamma: %f, render mode: %d, pixel geometry %d\n",
+      mDefaultParams->GetEnhancedContrast(),
+      mDefaultParams->GetGamma(),
+      mDefaultParams->GetRenderingMode(),
+      mDefaultParams->GetPixelGeometry());
+
+  float contrast = mDefaultParams->GetEnhancedContrast();
+  contrast = 1.0f;
+
+  mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, mDefaultParams->GetClearTypeLevel(), mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_DEFAULT, &mCustomParams);
+
+  DWRITE_PIXEL_GEOMETRY geometry = mDefaultParams->GetPixelGeometry();
+  mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, mDefaultParams->GetClearTypeLevel(), mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_GDI_CLASSIC, &mGDIParams);
+
+  IDWriteRenderingParams* monitorParams;
+  mDwriteFactory->CreateMonitorRenderingParams(GetPrimaryMonitorHandle(), &monitorParams);
+
+  float grayscale = 0.0f;
+  hr = mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, grayscale, mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_DEFAULT, &mGrayscaleParams);
+  assert(hr == S_OK);
+}
+
+void
+D2DSetup::InitD2D()
+{
+  CreateImageBrushes();
+  InitDWrite();
+  QueryPerformanceFrequency(&mFrequency);
 }
 
 void
