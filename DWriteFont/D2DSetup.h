@@ -19,11 +19,10 @@ typedef SkTMaskGamma<3, 3, 3> SkMaskGamma;
 class D2DSetup
 {
 public:
-    D2DSetup(HWND aHWND, HDC aHDC)
+    D2DSetup(HWND aHWND)
         : fPreBlend(CreateLUT())
         , fGdiPreBlend(CreateGdiLUT())
     {
-        mHDC = aHDC;
         mHWND = aHWND;
         Init();
     }
@@ -79,8 +78,12 @@ private:
     float GetScaleFactor() { return mDpiX / 96.0f; }
     void PrintElapsedTime(LARGE_INTEGER aStart, LARGE_INTEGER aEnd, const char* aMsg);
 
+    void CreateD3DDevice();
+    void CreateD2DDevices();
+    void CreateDXGIResources();
+    void SetD2DToBackBuffer();
+
     HWND mHWND;
-    HDC mHDC;
 
     ID2D1Factory1* mFactory;
     ID2D1HwndRenderTarget* mRenderTarget;
@@ -94,6 +97,7 @@ private:
     ID2D1SolidColorBrush* mBlackBrush;
     ID2D1SolidColorBrush* mWhiteBrush;
     ID2D1SolidColorBrush* mDarkBlackBrush;
+    ID2D1SolidColorBrush* mRedBrush;
     ID2D1SolidColorBrush* mTransparentBlackBrush;
 
     IDWriteRenderingParams* mCustomParams;
@@ -114,12 +118,13 @@ private:
     LARGE_INTEGER mFrequency;
 
     // D2D 11 things
-    ID3D11Device* mDevice;
-    ID3D11DeviceContext* mDeviceContext;
+    ID3D11Device* mD3D_Device;
+    ID3D11DeviceContext* mD3D_DeviceContext;
     IDXGISwapChain* mSwapChain;
     ID3D11RenderTargetView* mView;
-    IDXGIAdapter1* mAdapter;
-    IDXGIFactory1* mDxgiFactory;
+    IDXGIAdapter* mAdapter;
+    IDXGIFactory* mDxgiFactory;
     IDXGISurface* mDxgiSurface;
     ID2D1Bitmap1* mTargetBitmap;
+    IDXGIDevice* mDxgiDevice;
 };

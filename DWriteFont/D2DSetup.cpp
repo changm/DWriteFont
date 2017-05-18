@@ -35,6 +35,8 @@ void D2DSetup::Init()
   HRESULT hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &mFactory);
   assert(hr == S_OK);
 
+  InitD3D();
+
   RECT clientRect;
   GetClientRect(mHWND, &clientRect);
 
@@ -54,6 +56,7 @@ void D2DSetup::Init()
   mFactory->GetDesktopDpi(&mDpiX, &mDpiY);
 
   // Create a Direct2D render target.
+  /*
   D2D1_RENDER_TARGET_PROPERTIES properties = D2D1::RenderTargetProperties();
   properties.dpiX = mDpiX;
   properties.dpiY = mDpiY;
@@ -62,6 +65,7 @@ void D2DSetup::Init()
   hr = mFactory->CreateHwndRenderTarget(&properties, &hwndProperties,
                       &mRenderTarget);
   assert(hr == S_OK);
+  */
 
   hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), reinterpret_cast<IUnknown**>(&mDwriteFactory));
   assert(hr == S_OK);
@@ -73,13 +77,14 @@ void D2DSetup::Init()
   mTextFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
   mTextFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
 
-  hr = mRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x404040, 1.0f), &mDarkBlackBrush);
-  hr = mRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black, 1.0f), &mBlackBrush);
-  hr = mRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White, 1.0f), &mWhiteBrush);
-  hr = mRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black, 0.0f), &mTransparentBlackBrush);
+  hr = mDC->CreateSolidColorBrush(D2D1::ColorF(0x404040, 1.0f), &mDarkBlackBrush);
+  hr = mDC->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black, 1.0f), &mBlackBrush);
+  hr = mDC->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White, 1.0f), &mWhiteBrush);
+  hr = mDC->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black, 0.0f), &mTransparentBlackBrush);
+  hr = mDC->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Red, 1.0F), &mRedBrush);
 
   // Now we can play with params
-  mRenderTarget->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_DEFAULT);
+  mDC->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_DEFAULT);
 
   IDWriteRenderingParams* defaultParams;
   mDwriteFactory->CreateRenderingParams(&mDefaultParams);
@@ -107,13 +112,159 @@ void D2DSetup::Init()
   assert(hr == S_OK);
 
   QueryPerformanceFrequency(&mFrequency);
+}
 
-  InitD3D();
+void
+D2DSetup::CreateD3DDevice()
+{
+  // This flag adds support for surfaces with a different color channel ordering than the API default.
+  // You need it for compatibility with Direct2D.
+  UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT | D3D11_CREATE_DEVICE_DEBUG;
+
+  // This array defines the set of DirectX hardware feature levels this app  supports.
+  // The ordering is important and you should  preserve it.
+  // Don't forget to declare your app's minimum required feature level in its
+  // description.  All apps are assumed to support 9.1 unless otherwise stated.
+  D3D_FEATURE_LEVEL featureLevels[] =
+  {
+    D3D_FEATURE_LEVEL_11_1,
+    D3D_FEATURE_LEVEL_11_0,
+    D3D_FEATURE_LEVEL_10_1,
+    D3D_FEATURE_LEVEL_10_0,
+    D3D_FEATURE_LEVEL_9_3,
+    D3D_FEATURE_LEVEL_9_2,
+    D3D_FEATURE_LEVEL_9_1
+  };
+
+  DXGI_SWAP_CHAIN_DESC sdc;
+  memset(&sdc, 0, sizeof(sdc));
+  sdc.BufferCount = 1;
+  sdc.BufferDesc.Width = 2048;
+  sdc.BufferDesc.Height = 2048;
+  sdc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  sdc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+  sdc.OutputWindow = mHWND;
+  sdc.Windowed = true;
+  sdc.SampleDesc.Count = 1;
+  sdc.SampleDesc.Quality = 0;
+  sdc.SwapEffect = DXGI_SWAP_EFFECT_SEQUENTIAL;
+
+  HRESULT hr = D3D11CreateDeviceAndSwapChain(nullptr,
+    D3D_DRIVER_TYPE_HARDWARE,
+    0,
+    creationFlags,
+    featureLevels,
+    ARRAYSIZE(featureLevels),
+    D3D11_SDK_VERSION,
+    &sdc,
+    &mSwapChain,
+    &mD3D_Device,
+    nullptr,
+    &mD3D_DeviceContext);
+
+  if (hr != S_OK) {
+    _com_error err(hr);
+    LPCTSTR errMsg = err.ErrorMessage();
+    std::wcout << errMsg;
+  }
+  assert(hr == S_OK);
+}
+
+void
+D2DSetup::CreateDXGIResources()
+{
+  // Create d2d things now
+  mD3D_Device->QueryInterface(&mDxgiDevice);
+  assert(mDxgiDevice);
+
+  HRESULT hr = mDxgiDevice->GetAdapter(&mAdapter);
+  assert(hr == S_OK);
+
+  hr = mAdapter->GetParent(IID_PPV_ARGS(&mDxgiFactory));
+  assert(hr == S_OK);
+}
+
+void
+D2DSetup::CreateD2DDevices()
+{
+  HRESULT hr = mFactory->CreateDevice(mDxgiDevice, &md2d_device);
+  assert(hr == S_OK);
+
+  hr = md2d_device->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &mDC);
+  assert(hr == S_OK);
+}
+
+void
+D2DSetup::SetD2DToBackBuffer()
+{
+// Direct2D needs the dxgi version of the back buffer
+  ID3D11Texture2D* pBackBuffer;
+  // Get a pointer to the back buffer
+  HRESULT hr = mSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D),
+    (LPVOID*)&pBackBuffer);
+  assert(hr == S_OK);
+
+  hr = pBackBuffer->QueryInterface(__uuidof(IDXGISurface),
+                              (LPVOID*)&mDxgiSurface);
+  assert(hr == S_OK);
+
+  // Setup D2D to hook into the back buffer, using our own bitmap properties fails woot?
+  D2D1_BITMAP_PROPERTIES1 bitmapProperties;
+  memset(&bitmapProperties, 0, sizeof(D2D1_BITMAP_PROPERTIES1));
+  bitmapProperties.dpiX = mDpiX;
+  bitmapProperties.dpiY = mDpiY;
+  bitmapProperties.pixelFormat = D2D1_PIXEL_FORMAT{ DXGI_FORMAT_R8G8B8A8_UNORM,  D2D1_ALPHA_MODE_PREMULTIPLIED };
+  bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS{ D2D1_BITMAP_OPTIONS_TARGET };
+  bitmapProperties.colorContext = nullptr;
+
+  hr = mDC->CreateBitmapFromDxgiSurface(mDxgiSurface, nullptr, &mTargetBitmap);
+  if (hr != S_OK) {
+    _com_error err(hr);
+    LPCTSTR errMsg = err.ErrorMessage();
+    std::wcout << errMsg;
+  }
+  assert(hr == S_OK);
+
+  mDC->SetTarget(mTargetBitmap);
+}
+
+D2DSetup::~D2DSetup()
+{
+  mFactory->Release();
+  mRenderTarget->Release();
+  mDwriteFactory->Release();
+  mTextFormat->Release();
+  mBlackBrush->Release();
+  mRedBrush->Release();
+  mTransparentBlackBrush->Release();
+  mWhiteBrush->Release();
+  mDefaultParams->Release();
+  mCustomParams->Release();
+  mWICFactory->Release();
+
+  mD3D_Device->Release();
+  mD3D_DeviceContext->Release();
+  md2d_device->Release();
+  mDxgiDevice->Release();
+  mDC->Release();
+  mAdapter->Release();
+  mDxgiFactory->Release();
+
+  mSwapChain->Release();
+  //mView->Release();
+
+  mDxgiSurface->Release();
+  mTargetBitmap->Release();
 }
 
 void
 D2DSetup::InitD3D()
 {
+  CreateD3DDevice();
+  CreateDXGIResources();
+  CreateD2DDevices();
+  SetD2DToBackBuffer();
+  /*
   // This flag adds support for surfaces with a different color channel ordering than the API default.
   // You need it for compatibility with Direct2D.
   UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
@@ -177,8 +328,6 @@ D2DSetup::InitD3D()
   assert(hr == S_OK);
 
   // Direct2D needs the dxgi version of the back buffer
-  IDXGISurface* dxgiBuffer;
-
   ID3D11Texture2D* pBackBuffer;
   // Get a pointer to the back buffer
   hr = mSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D),
@@ -198,11 +347,6 @@ D2DSetup::InitD3D()
   bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS{ D2D1_BITMAP_OPTIONS_TARGET };
   bitmapProperties.colorContext = nullptr;
 
-  /*
-  hr = mSwapChain->GetBuffer(0, IID_PPV_ARGS(&mDxgiSurface));
-  assert(hr == S_OK);
-  */
-
   hr = mDC->CreateBitmapFromDxgiSurface(mDxgiSurface, nullptr, &mTargetBitmap);
   if (hr != S_OK) {
     _com_error err(hr);
@@ -212,6 +356,7 @@ D2DSetup::InitD3D()
   assert(hr == S_OK);
 
   mDC->SetTarget(mTargetBitmap);
+
 
   // Create a render-target view
   mDevice->CreateRenderTargetView(pBackBuffer, NULL,
@@ -228,32 +373,7 @@ D2DSetup::InitD3D()
   vp.TopLeftX = 0.0;
   vp.TopLeftY = 0.0;
   mDeviceContext->RSSetViewports(1, &vp);
-}
-
-D2DSetup::~D2DSetup()
-{
-  mFactory->Release();
-  mRenderTarget->Release();
-  mDwriteFactory->Release();
-  mTextFormat->Release();
-  mBlackBrush->Release();
-  mTransparentBlackBrush->Release();
-  mWhiteBrush->Release();
-  mDefaultParams->Release();
-  mCustomParams->Release();
-  mWICFactory->Release();
-
-  mDevice->Release();
-  mDeviceContext->Release();
-  md2d_device->Release();
-
-  mSwapChain->Release();
-  mView->Release();
-
-  //mAdapter->Release();
-  //mDxgiFactory->Release();
-  mDxgiSurface->Release();
-  mTargetBitmap->Release();
+  */
 }
 
 void D2DSetup::PrintElapsedTime(LARGE_INTEGER aStart, LARGE_INTEGER aEnd, const char* aMsg)
@@ -952,12 +1072,17 @@ D2DSetup::DrawLuminanceEffect()
   destRect.right = size.width;
   destRect.top = size.height;
 
-  mDC->FillRectangle(destRect, mWhiteBrush);
+  mDC->FillRectangle(destRect, mRedBrush);
 
-  mDC->EndDraw();
+  HRESULT hr = mDC->EndDraw();
+if (hr != S_OK) {
+    _com_error err(hr);
+    LPCTSTR errMsg = err.ErrorMessage();
+    std::wcout << errMsg;
+  }
   mDC->Flush();
 
-  //Present();
+  Present();
 
   /*
   // Read the image from disk

@@ -101,6 +101,14 @@ void CreateTimers(HWND hWnd)
 	SetTimer(hWnd, RESET_TIMER, 1500, NULL);
 }
 
+D2DSetup* paintWindow;
+static D2DSetup* GetPaintWindow(HWND aHWND) {
+  if (!paintWindow) {
+    paintWindow = new D2DSetup(aHWND);
+  }
+
+  return paintWindow;
+}
 //
 //   FUNCTION: InitInstance(HINSTANCE, int)
 //
@@ -134,16 +142,18 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 static void PaintText(HWND aHWND, HDC aHDC)
 {
-	D2DSetup d2d(aHWND, aHDC);
+  GetPaintWindow(aHWND)->DrawLuminanceEffect();
+	//D2DSetup d2d(aHWND, aHDC);
 	//d2d.Clear();
-  d2d.DrawLuminanceEffect();
+  //d2d.DrawLuminanceEffect();
+  //paintWindow->DrawLuminanceEffect();
 	//d2d.DrawWithMask();
 }
 
 static void AlternateText(HWND aHWND, HDC aHDC, int count)
 {
-	D2DSetup d2d(aHWND, aHDC);
-	d2d.AlternateText(count);
+	//D2DSetup d2d(aHWND, aHDC);
+	//d2d.AlternateText(count);
 }
 
 //
@@ -182,7 +192,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps);
             // TODO: Add any drawing code that uses hdc here...
-			PaintText(hWnd, hdc);
+            PaintText(hWnd, hdc);
             EndPaint(hWnd, &ps);
         }
         break;
