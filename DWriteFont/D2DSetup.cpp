@@ -1085,11 +1085,24 @@ if (hr != S_OK) {
   ID2D1Effect* luminanceEffect;
   hr = mDC->CreateEffect(CLSID_D2D1LuminanceToAlpha, &luminanceEffect);
   assert(hr == S_OK);
+  luminanceEffect->SetInput(0, imageBitmap);
 
+  ID2D1Effect* floodEffect;
+  hr = mDC->CreateEffect(CLSID_D2D1Flood, &floodEffect);
+  assert(hr == S_OK);
+  floodEffect->SetValue(D2D1_FLOOD_PROP_COLOR, D2D1::Vector4F(1.0f, 1.0f, 1.0f, 1.0f));
+
+  ID2D1Effect* compositeEffect;
+  mDC->CreateEffect(CLSID_D2D1Composite, &compositeEffect);
+
+  compositeEffect->SetInputEffect(0, floodEffect);
+  compositeEffect->SetInputEffect(1, luminanceEffect);
+
+  // draw our image bitmap first
   mDC->BeginDraw();
 
   mDC->FillRectangle(destRect, mWhiteBrush);
-  mDC->DrawBitmap(imageBitmap);
+  mDC->DrawImage(compositeEffect);
 
   mDC->EndDraw();
   mDC->Flush();
@@ -1100,6 +1113,9 @@ if (hr != S_OK) {
   imageBitmap->Release();
 
   luminanceEffect->Release();
+  floodEffect->Release();
+  compositeEffect->Release();
+
   tmpBitmap->Release();
 
   Present();
