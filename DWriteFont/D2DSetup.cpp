@@ -1077,17 +1077,31 @@ if (hr != S_OK) {
   bitmapSize.width = size.width;
   bitmapSize.height = size.height;
 
+  // draw our image bitmap first
+  mDC->BeginDraw();
+
+  // The luminance effect blends with the fill rect before!
+  mDC->FillRectangle(destRect, mWhiteBrush);
+  mDC->DrawImage(imageBitmap);
+
+  hr = mDC->EndDraw();
+  assert(hr == S_OK);
+  mDC->Flush();
+
+  Present();
+
   ID2D1Bitmap* tmpBitmap;
-  D2D1_BITMAP_PROPERTIES properties = { DXGI_FORMAT_B8G8R8A8_UNORM,  D2D1_ALPHA_MODE_PREMULTIPLIED };
+  D2D1_BITMAP_PROPERTIES properties = { mTargetBitmap->GetPixelFormat() };
   hr = mDC->CreateBitmap(bitmapSize, properties, &tmpBitmap);
+  assert(hr == S_OK);
+  hr = tmpBitmap->CopyFromBitmap(nullptr, mTargetBitmap, nullptr);
   assert(hr == S_OK);
 
   ID2D1Effect* luminanceEffect;
   hr = mDC->CreateEffect(CLSID_D2D1LuminanceToAlpha, &luminanceEffect);
   assert(hr == S_OK);
-  luminanceEffect->SetInput(0, imageBitmap);
+  luminanceEffect->SetInput(0, tmpBitmap);
 
-  /*
   ID2D1Effect* floodEffect;
   hr = mDC->CreateEffect(CLSID_D2D1Flood, &floodEffect);
   assert(hr == S_OK);
@@ -1098,16 +1112,14 @@ if (hr != S_OK) {
 
   compositeEffect->SetInputEffect(0, floodEffect);
   compositeEffect->SetInputEffect(1, luminanceEffect);
-  */
 
-  // draw our image bitmap first
+  // Try to draw our bitmap
   mDC->BeginDraw();
-
-  mDC->FillRectangle(destRect, mWhiteBrush);
+  mDC->FillRectangle(destRect, mRedBrush);
   mDC->DrawImage(luminanceEffect);
 
-  mDC->EndDraw();
-  mDC->Flush();
+  hr == mDC->EndDraw();
+  assert(hr == S_OK);
 
   pConverter->Release();
   pSource->Release();
@@ -1115,8 +1127,8 @@ if (hr != S_OK) {
   imageBitmap->Release();
 
   luminanceEffect->Release();
-  //floodEffect->Release();
-  //compositeEffect->Release();
+  floodEffect->Release();
+  compositeEffect->Release();
 
   tmpBitmap->Release();
 
