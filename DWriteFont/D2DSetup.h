@@ -85,6 +85,10 @@ private:
     void CreateD2DDevices();
     void CreateDXGIResources();
     void SetD2DToBackBuffer();
+    void ReleaseDWrite();
+    void ReleaseBrushes();
+    void ReleaseD3D();
+    void ReleaseD2D();
 
     HWND mHWND;
 

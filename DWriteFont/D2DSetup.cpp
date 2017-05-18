@@ -139,6 +139,18 @@ D2DSetup::CreateDXGIResources()
 }
 
 void
+D2DSetup::ReleaseD3D()
+{
+  mDxgiDevice->Release();
+  mAdapter->Release();
+  mDxgiFactory->Release();
+
+  mSwapChain->Release();
+  mD3D_Device->Release();
+  mD3D_DeviceContext->Release();
+}
+
+void
 D2DSetup::CreateD2DDevices()
 {
   HRESULT hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &mFactory);
@@ -159,6 +171,16 @@ D2DSetup::CreateImageBrushes()
   mDC->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White, 1.0f), &mWhiteBrush);
   mDC->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black, 0.0f), &mTransparentBlackBrush);
   mDC->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Red, 1.0F), &mRedBrush);
+}
+
+void
+D2DSetup::ReleaseBrushes()
+{
+  mDarkBlackBrush->Release();
+  mBlackBrush->Release();
+  mWhiteBrush->Release();
+  mTransparentBlackBrush->Release();
+  mRedBrush->Release();
 }
 
 void
@@ -195,12 +217,29 @@ D2DSetup::InitDWrite()
   DWRITE_PIXEL_GEOMETRY geometry = mDefaultParams->GetPixelGeometry();
   mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, mDefaultParams->GetClearTypeLevel(), mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_GDI_CLASSIC, &mGDIParams);
 
-  IDWriteRenderingParams* monitorParams;
-  mDwriteFactory->CreateMonitorRenderingParams(GetPrimaryMonitorHandle(), &monitorParams);
-
   float grayscale = 0.0f;
   hr = mDwriteFactory->CreateCustomRenderingParams(mDefaultParams->GetGamma(), contrast, grayscale, mDefaultParams->GetPixelGeometry(), DWRITE_RENDERING_MODE_DEFAULT, &mGrayscaleParams);
   assert(hr == S_OK);
+}
+
+void
+D2DSetup::ReleaseDWrite()
+{
+  mTextFormat->Release();
+  mDwriteFactory->Release();
+  mDefaultParams->Release();
+  mCustomParams->Release();
+  mGDIParams->Release();
+  mGrayscaleParams->Release();
+}
+
+void
+D2DSetup::ReleaseD2D()
+{
+  mDC->Release();
+  mFactory->Release();
+  mTargetBitmap->Release();
+  md2d_device->Release();
 }
 
 void
@@ -247,31 +286,10 @@ D2DSetup::SetD2DToBackBuffer()
 
 D2DSetup::~D2DSetup()
 {
-  mFactory->Release();
-  mRenderTarget->Release();
-  mDwriteFactory->Release();
-  mTextFormat->Release();
-  mBlackBrush->Release();
-  mRedBrush->Release();
-  mTransparentBlackBrush->Release();
-  mWhiteBrush->Release();
-  mDefaultParams->Release();
-  mCustomParams->Release();
-  mWICFactory->Release();
-
-  mD3D_Device->Release();
-  mD3D_DeviceContext->Release();
-  md2d_device->Release();
-  mDxgiDevice->Release();
-  mDC->Release();
-  mAdapter->Release();
-  mDxgiFactory->Release();
-
-  mSwapChain->Release();
-  //mView->Release();
-
-  mDxgiSurface->Release();
-  mTargetBitmap->Release();
+  ReleaseBrushes();
+  ReleaseDWrite();
+  ReleaseD2D();
+  ReleaseD3D();
 }
 
 void
@@ -281,116 +299,6 @@ D2DSetup::InitD3D()
   CreateDXGIResources();
   CreateD2DDevices();
   SetD2DToBackBuffer();
-  /*
-  // This flag adds support for surfaces with a different color channel ordering than the API default.
-  // You need it for compatibility with Direct2D.
-  UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
-
-  // This array defines the set of DirectX hardware feature levels this app  supports.
-  // The ordering is important and you should  preserve it.
-  // Don't forget to declare your app's minimum required feature level in its
-  // description.  All apps are assumed to support 9.1 unless otherwise stated.
-  D3D_FEATURE_LEVEL featureLevels[] =
-  {
-    D3D_FEATURE_LEVEL_11_1,
-    D3D_FEATURE_LEVEL_11_0,
-    D3D_FEATURE_LEVEL_10_1,
-    D3D_FEATURE_LEVEL_10_0,
-    D3D_FEATURE_LEVEL_9_3,
-    D3D_FEATURE_LEVEL_9_2,
-    D3D_FEATURE_LEVEL_9_1
-  };
-
-  DXGI_SWAP_CHAIN_DESC sdc;
-  memset(&sdc, 0, sizeof(sdc));
-  sdc.BufferCount = 1;
-  sdc.BufferDesc.Width = 1024;
-  sdc.BufferDesc.Height = 1024;
-  sdc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-  sdc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-  sdc.OutputWindow = mHWND;
-  sdc.Windowed = true;
-  sdc.SampleDesc.Count = 1;
-  sdc.SampleDesc.Quality = 0;
-  sdc.SwapEffect = DXGI_SWAP_EFFECT_SEQUENTIAL;
-
-  HRESULT hr = D3D11CreateDeviceAndSwapChain(nullptr,
-    D3D_DRIVER_TYPE_HARDWARE,
-    0,
-    creationFlags,
-    featureLevels,
-    ARRAYSIZE(featureLevels),
-    D3D11_SDK_VERSION,
-    &sdc,
-    &mSwapChain,
-    &mDevice,
-    nullptr,
-    &mDeviceContext);
-
-  if (hr != S_OK) {
-    _com_error err(hr);
-    LPCTSTR errMsg = err.ErrorMessage();
-    std::wcout << errMsg;
-  }
-  assert(hr == S_OK);
-
-  // Create d2d things now
-  IDXGIDevice* dxgiDevice;
-  mDevice->QueryInterface(&dxgiDevice);
-
-  hr = mFactory->CreateDevice(dxgiDevice, &md2d_device);
-  assert(hr == S_OK);
-
-  hr = md2d_device->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_ENABLE_MULTITHREADED_OPTIMIZATIONS, &mDC);
-  assert(hr == S_OK);
-
-  // Direct2D needs the dxgi version of the back buffer
-  ID3D11Texture2D* pBackBuffer;
-  // Get a pointer to the back buffer
-  hr = mSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D),
-    (LPVOID*)&pBackBuffer);
-  assert(hr == S_OK);
-
-  hr = pBackBuffer->QueryInterface(__uuidof(IDXGISurface),
-                              (LPVOID*)&mDxgiSurface);
-  assert(hr == S_OK);
-
-  // Setup D2D to hook into the back buffer, using our own bitmap properties fails woot?
-  D2D1_BITMAP_PROPERTIES1 bitmapProperties;
-  memset(&bitmapProperties, 0, sizeof(D2D1_BITMAP_PROPERTIES1));
-  bitmapProperties.dpiX = mDpiX;
-  bitmapProperties.dpiY = mDpiY;
-  bitmapProperties.pixelFormat = D2D1_PIXEL_FORMAT{ DXGI_FORMAT_R8G8B8A8_UNORM,  D2D1_ALPHA_MODE_PREMULTIPLIED };
-  bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS{ D2D1_BITMAP_OPTIONS_TARGET };
-  bitmapProperties.colorContext = nullptr;
-
-  hr = mDC->CreateBitmapFromDxgiSurface(mDxgiSurface, nullptr, &mTargetBitmap);
-  if (hr != S_OK) {
-    _com_error err(hr);
-    LPCTSTR errMsg = err.ErrorMessage();
-    std::wcout << errMsg;
-  }
-  assert(hr == S_OK);
-
-  mDC->SetTarget(mTargetBitmap);
-
-
-  // Create a render-target view
-  mDevice->CreateRenderTargetView(pBackBuffer, NULL,
-    &mView);
-
-  // Bind the view
-  mDeviceContext->OMSetRenderTargets(1, &mView, NULL);
-
-  D3D11_VIEWPORT vp;
-  vp.Width = 1024;
-  vp.Height = 1024;
-  vp.MinDepth = 0.0;
-  vp.MaxDepth = 1.0;
-  vp.TopLeftX = 0.0;
-  vp.TopLeftY = 0.0;
-  mDeviceContext->RSSetViewports(1, &vp);
-  */
 }
 
 void D2DSetup::PrintElapsedTime(LARGE_INTEGER aStart, LARGE_INTEGER aEnd, const char* aMsg)
