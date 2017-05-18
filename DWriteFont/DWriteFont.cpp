@@ -14,7 +14,6 @@ static void InitConsole()
 	freopen_s(&pFile, "CON", "w", stdout);
 }
 
-
 #define MAX_LOADSTRING 100
 
 // Global Variables:

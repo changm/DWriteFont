@@ -1090,9 +1090,15 @@ if (hr != S_OK) {
 
   Present();
 
-  ID2D1Bitmap* tmpBitmap;
-  D2D1_BITMAP_PROPERTIES properties = { mTargetBitmap->GetPixelFormat() };
-  hr = mDC->CreateBitmap(bitmapSize, properties, &tmpBitmap);
+  ID2D1Bitmap1* tmpBitmap;
+  //D2D1_BITMAP_PROPERTIES1 properties; = { mTargetBitmap->GetPixelFormat(), D2D1_BITMAP_OPTIONS_CPU_READ };
+  D2D1_BITMAP_PROPERTIES1 properties;
+  properties.colorContext = nullptr;
+  mTargetBitmap->GetDpi(&properties.dpiX, &properties.dpiY);
+  properties.pixelFormat = mTargetBitmap->GetPixelFormat();
+  properties.bitmapOptions = D2D1_BITMAP_OPTIONS_CPU_READ | D2D1_BITMAP_OPTIONS_CANNOT_DRAW;
+  hr = mDC->CreateBitmap(bitmapSize, nullptr, 0, properties, &tmpBitmap);
+
   assert(hr == S_OK);
   hr = tmpBitmap->CopyFromBitmap(nullptr, mTargetBitmap, nullptr);
   assert(hr == S_OK);
@@ -1115,11 +1121,13 @@ if (hr != S_OK) {
 
   // Try to draw our bitmap
   mDC->BeginDraw();
-  mDC->FillRectangle(destRect, mRedBrush);
-  mDC->DrawImage(luminanceEffect);
+  mDC->DrawImage(tmpBitmap);
 
   hr == mDC->EndDraw();
   assert(hr == S_OK);
+  Present();
+
+  PrintBitmap(tmpBitmap);
 
   pConverter->Release();
   pSource->Release();
@@ -1131,8 +1139,48 @@ if (hr != S_OK) {
   compositeEffect->Release();
 
   tmpBitmap->Release();
+}
 
-  Present();
+void
+D2DSetup::PrintBitmap(ID2D1Bitmap1* bitmap)
+{
+  D2D1_MAPPED_RECT map;
+  HRESULT hr = bitmap->Map(D2D1_MAP_OPTIONS_READ, &map);
+  if (hr != S_OK) {
+    _com_error err(hr);
+    LPCTSTR errMsg = err.ErrorMessage();
+    std::wcout << errMsg;
+  }
+
+  D2D1_SIZE_F size = bitmap->GetSize();
+  uint32_t stride = map.pitch;
+  uint8_t* data = (uint8_t*)map.bits;
+
+  uint32_t start_row = (size.height - 1) * stride;
+  for (uint32_t row = 0; row < stride; row += 4) {
+  uint32_t pos = start_row + row;
+      printf("( %u, %u, %u, %u ) ",
+        data[pos],
+        data[pos + 1],
+        data[pos + 2],
+        data[pos + 3]);
+  }
+
+  /*
+  for (uint32_t height = 0; height < size.height; height++) {
+    for (uint32_t row = 0; row < stride; row += 4) {
+      uint32_t pos = height * row;
+      printf("( %u, %u, %u, %u ) ",
+        data[pos],
+        data[pos + 1],
+        data[pos + 2],
+        data[pos + 3]);
+    }
+    printf("\n");
+  }
+  */
+
+  bitmap->Unmap();
 }
 
 SkMaskGamma::PreBlend D2DSetup::CreateLUT()
