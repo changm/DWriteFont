@@ -89,6 +89,7 @@ private:
     void ReleaseBrushes();
     void ReleaseD3D();
     void ReleaseD2D();
+    void CleanWICResources();
 
     HWND mHWND;
 
@@ -101,16 +102,17 @@ private:
 
     IDWriteFactory* mDwriteFactory;
     IDWriteTextFormat* mTextFormat;
+    IDWriteRenderingParams* mCustomParams;
+    IDWriteRenderingParams* mDefaultParams;
+    IDWriteRenderingParams* mGDIParams;
+    IDWriteRenderingParams* mGrayscaleParams;
+
     ID2D1SolidColorBrush* mBlackBrush;
     ID2D1SolidColorBrush* mWhiteBrush;
     ID2D1SolidColorBrush* mDarkBlackBrush;
     ID2D1SolidColorBrush* mRedBrush;
     ID2D1SolidColorBrush* mTransparentBlackBrush;
 
-    IDWriteRenderingParams* mCustomParams;
-    IDWriteRenderingParams* mDefaultParams;
-    IDWriteRenderingParams* mGDIParams;
-    IDWriteRenderingParams* mGrayscaleParams;
     float mFontSize;
 
     SkMaskGamma::PreBlend fPreBlend;
@@ -128,10 +130,9 @@ private:
     ID3D11Device* mD3D_Device;
     ID3D11DeviceContext* mD3D_DeviceContext;
     IDXGISwapChain* mSwapChain;
-    ID3D11RenderTargetView* mView;
     IDXGIAdapter* mAdapter;
+    IDXGISurface1* mDxgiSurface;
     IDXGIFactory* mDxgiFactory;
-    IDXGISurface* mDxgiSurface;
     ID2D1Bitmap1* mTargetBitmap;
     IDXGIDevice* mDxgiDevice;
 };

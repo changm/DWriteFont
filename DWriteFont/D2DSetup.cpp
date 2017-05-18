@@ -7,6 +7,7 @@
 #include <iostream>
 #include <d3d10_1.h>
 #include <D2d1_1.h>
+#include "d2d1effects.h";
 
 
 #define SK_A32_SHIFT 24
@@ -45,6 +46,12 @@ void D2DSetup::Init()
   mFactory->GetDesktopDpi(&mDpiX, &mDpiY);
 
   InitD2D();
+}
+
+void
+D2DSetup::CleanWICResources() {
+  mWICBitmap->Release();
+  mWICFactory->Release();
 }
 
 void
@@ -988,6 +995,7 @@ D2DSetup::Present()
 void
 D2DSetup::DrawLuminanceEffect()
 {
+  /*
   mDC->BeginDraw();
 
   D2D1_SIZE_F size = mTargetBitmap->GetSize();
@@ -1008,8 +1016,8 @@ if (hr != S_OK) {
   mDC->Flush();
 
   Present();
+  */
 
-  /*
   // Read the image from disk
   IWICBitmapDecoder *pDecoder = NULL;
   IWICBitmapFrameDecode *pSource = NULL;
@@ -1053,11 +1061,11 @@ if (hr != S_OK) {
   assert(hr == S_OK);
 
   // Create a Direct2D bitmap from the WIC bitmap.
-  ID2D1Bitmap* bitmap;
-  hr = mRenderTarget->CreateBitmapFromWicBitmap(pConverter, &bitmap);
+  ID2D1Bitmap* imageBitmap;
+  hr = mDC->CreateBitmapFromWicBitmap(pConverter, &imageBitmap);
   assert(hr == S_OK);
 
-  D2D1_SIZE_F size = mRenderTarget->GetSize();
+  D2D1_SIZE_F size = mDC->GetSize();
   D2D1_RECT_F destRect;
   destRect.left = 0;
   destRect.bottom = 0;
@@ -1074,20 +1082,27 @@ if (hr != S_OK) {
   hr = mDC->CreateBitmap(bitmapSize, properties, &tmpBitmap);
   assert(hr == S_OK);
 
+  ID2D1Effect* luminanceEffect;
+  hr = mDC->CreateEffect(CLSID_D2D1LuminanceToAlpha, &luminanceEffect);
+  assert(hr == S_OK);
+
   mDC->BeginDraw();
-  mDC->FillRectangle(destRect, mBlackBrush);
+
+  mDC->FillRectangle(destRect, mWhiteBrush);
+  mDC->DrawBitmap(imageBitmap);
+
   mDC->EndDraw();
   mDC->Flush();
-
-  //mRenderTarget->BeginDraw();
-  //mRenderTarget->DrawBitmap(tmpBitmap, destRect, 1.0);
-  //mRenderTarget->EndDraw();
 
   pConverter->Release();
   pSource->Release();
   pDecoder->Release();
-  bitmap->Release();
-  */
+  imageBitmap->Release();
+
+  luminanceEffect->Release();
+  tmpBitmap->Release();
+
+  Present();
 }
 
 SkMaskGamma::PreBlend D2DSetup::CreateLUT()
