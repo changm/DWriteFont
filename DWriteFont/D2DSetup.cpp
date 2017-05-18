@@ -274,10 +274,10 @@ D2DSetup::SetD2DToBackBuffer()
   // Setup D2D to hook into the back buffer, using our own bitmap properties fails woot?
   D2D1_BITMAP_PROPERTIES1 bitmapProperties;
   memset(&bitmapProperties, 0, sizeof(D2D1_BITMAP_PROPERTIES1));
-  bitmapProperties.dpiX = mDpiX;
-  bitmapProperties.dpiY = mDpiY;
+  bitmapProperties.dpiX = 96;
+  bitmapProperties.dpiY = 96;
   bitmapProperties.pixelFormat = D2D1_PIXEL_FORMAT{ DXGI_FORMAT_R8G8B8A8_UNORM,  D2D1_ALPHA_MODE_PREMULTIPLIED };
-  bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS{ D2D1_BITMAP_OPTIONS_TARGET };
+  bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS{ D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CPU_READ | D2D1_BITMAP_OPTIONS_CANNOT_DRAW };
   bitmapProperties.colorContext = nullptr;
 
   hr = mDC->CreateBitmapFromDxgiSurface(mDxgiSurface, nullptr, &mTargetBitmap);
@@ -1090,13 +1090,13 @@ if (hr != S_OK) {
 
   Present();
 
+  // Create a bitmap that can be used as an input
   ID2D1Bitmap1* tmpBitmap;
-  //D2D1_BITMAP_PROPERTIES1 properties; = { mTargetBitmap->GetPixelFormat(), D2D1_BITMAP_OPTIONS_CPU_READ };
   D2D1_BITMAP_PROPERTIES1 properties;
   properties.colorContext = nullptr;
   mTargetBitmap->GetDpi(&properties.dpiX, &properties.dpiY);
   properties.pixelFormat = mTargetBitmap->GetPixelFormat();
-  properties.bitmapOptions = D2D1_BITMAP_OPTIONS_CPU_READ | D2D1_BITMAP_OPTIONS_CANNOT_DRAW;
+  properties.bitmapOptions = D2D1_BITMAP_OPTIONS_NONE;
   hr = mDC->CreateBitmap(bitmapSize, nullptr, 0, properties, &tmpBitmap);
 
   assert(hr == S_OK);
@@ -1106,6 +1106,7 @@ if (hr != S_OK) {
   ID2D1Effect* luminanceEffect;
   hr = mDC->CreateEffect(CLSID_D2D1LuminanceToAlpha, &luminanceEffect);
   assert(hr == S_OK);
+  // Our input cannot be the target bitmap or the copy bitmap.
   luminanceEffect->SetInput(0, tmpBitmap);
 
   ID2D1Effect* floodEffect;
@@ -1119,15 +1120,37 @@ if (hr != S_OK) {
   compositeEffect->SetInputEffect(0, floodEffect);
   compositeEffect->SetInputEffect(1, luminanceEffect);
 
-  // Try to draw our bitmap
-  mDC->BeginDraw();
-  mDC->DrawImage(tmpBitmap);
-
-  hr == mDC->EndDraw();
+  ID2D1Bitmap1* secondBitmap;
+  properties.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET;
+  hr = mDC->CreateBitmap(bitmapSize, nullptr, 0, properties, &secondBitmap);
   assert(hr == S_OK);
+
+  mDC->BeginDraw();
+  mDC->DrawImage(luminanceEffect);
+  hr = mDC->EndDraw();
+  assert(hr == S_OK);
+  mDC->Flush();
   Present();
 
-  PrintBitmap(tmpBitmap);
+
+  // Try to draw our bitmap
+  /*
+  mDC->SetTarget(tmpBitmap);
+  mDC->BeginDraw();
+  mDC->DrawImage(luminanceEffect);
+  hr == mDC->EndDraw();
+  mDC->Flush();
+  assert(hr == S_OK);
+
+  mDC->SetTarget(mTargetBitmap);
+  mDC->BeginDraw();
+  mDC->DrawImage(tmpBitmap);
+  mDC->EndDraw();
+  assert(hr == S_OK);
+  Present();
+  */
+
+  //PrintBitmap(tmpBitmap);
 
   pConverter->Release();
   pSource->Release();
@@ -1151,6 +1174,7 @@ D2DSetup::PrintBitmap(ID2D1Bitmap1* bitmap)
     LPCTSTR errMsg = err.ErrorMessage();
     std::wcout << errMsg;
   }
+  assert(hr == S_OK);
 
   D2D1_SIZE_F size = bitmap->GetSize();
   uint32_t stride = map.pitch;
