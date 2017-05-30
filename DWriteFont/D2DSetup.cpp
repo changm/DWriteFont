@@ -173,6 +173,7 @@ D2DSetup::CreateD2DDevices()
 void
 D2DSetup::CreateImageBrushes()
 {
+  printf("Creating image brushes\n");
   mDC->CreateSolidColorBrush(D2D1::ColorF(0x404040, 1.0f), &mDarkBlackBrush);
   mDC->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black, 1.0f), &mBlackBrush);
   mDC->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White, 1.0f), &mWhiteBrush);
@@ -1079,7 +1080,8 @@ if (hr != S_OK) {
 
   // draw our image bitmap first
   mDC->BeginDraw();
-  mDC->FillRectangle(destRect, mRedBrush);
+  //mDC->FillRectangle(destRect, imageBitmap);
+  mDC->DrawImage(imageBitmap);
   hr = mDC->EndDraw();
   assert(hr == S_OK);
   mDC->Flush();
@@ -1122,8 +1124,35 @@ if (hr != S_OK) {
   assert(hr == S_OK);
   mDC->Flush();
   Present();
+  mDC->SetTarget(mTargetBitmap);
+
+  // So we can use it as an input;
+  ID2D1Bitmap1* alphaInputBitmap;
+  properties.bitmapOptions = D2D1_BITMAP_OPTIONS_NONE;
+  hr = mDC->CreateBitmap(bitmapSize, nullptr, 0, properties, &alphaInputBitmap);
+  assert(hr == S_OK);
+  hr = alphaInputBitmap->CopyFromBitmap(nullptr, alphaBitmap, nullptr);
+  assert(hr == S_OK);
+
+  mDC->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
+  mDC->BeginDraw();
+  //mDC->FillOpacityMask(alphaInputBitmap, mWhiteBrush, D2D1_OPACITY_MASK_CONTENT_GRAPHICS, destRect, destRect);
+  mDC->FillOpacityMask(alphaInputBitmap, mWhiteBrush);
+
+  hr = mDC->EndDraw();
+
+  if (hr != S_OK) {
+    _com_error err(hr);
+    LPCTSTR errMsg = err.ErrorMessage();
+    std::wcout << errMsg;
+  }
+  assert(hr == S_OK);
+
+  mDC->Flush();
+  Present();
 
   // Readback the bitmap
+  /*
   ID2D1Bitmap1* alphaReadback;
   properties.bitmapOptions = D2D1_BITMAP_OPTIONS_CPU_READ | D2D1_BITMAP_OPTIONS_CANNOT_DRAW;
   hr = mDC->CreateBitmap(bitmapSize, nullptr, 0, properties, &alphaReadback);
@@ -1132,9 +1161,22 @@ if (hr != S_OK) {
   assert(hr == S_OK);
 
   PrintAlphaBitmap(alphaReadback);
+  */
 
+  /*
+  // Use the alpha bitmap as a mask to paint the image.
+  ID2D1BitmapBrush* imageBitmapBrush;
+  hr = mDC->CreateBitmapBrush(imageBitmap, &imageBitmapBrush);
+  assert(hr == S_OK);
 
-  mDC->SetTarget(mTargetBitmap);
+  mDC->BeginDraw();
+  mDC->FillOpacityMask(alphaBitmap, mBlackBrush, destRect, destRect);
+  assert(hr == S_OK);
+
+  hr = mDC->EndDraw();
+  mDC->Flush();
+  Present();
+  */
 
   pConverter->Release();
   pSource->Release();
@@ -1172,8 +1214,6 @@ D2DSetup::PrintAlphaBitmap(ID2D1Bitmap1* bitmap)
 
   bitmap->Unmap();
 }
-
-
 
 void
 D2DSetup::PrintBitmap(ID2D1Bitmap1* bitmap)
