@@ -994,6 +994,44 @@ D2DSetup::Present()
 }
 
 void
+D2DSetup::PushLayer(ID2D1Image* aMaskImage)
+{
+  D2D1_LAYER_PARAMETERS layerParams;
+  layerParams.contentBounds = D2D1::InfiniteRect();
+  layerParams.geometricMask = nullptr;
+  layerParams.maskAntialiasMode = D2D1_ANTIALIAS_MODE_PER_PRIMITIVE;
+  layerParams.maskTransform = D2D1::IdentityMatrix();
+  layerParams.opacity = 1.0;
+  layerParams.layerOptions = D2D1_LAYER_OPTIONS_NONE;
+
+  D2D1_SIZE_F size = mTargetBitmap->GetSize();
+  D2D1_RECT_F destRect;
+  destRect.left = 0;
+  destRect.bottom = 0;
+  destRect.right = size.width;
+  destRect.top = size.height;
+
+  D2D1_IMAGE_BRUSH_PROPERTIES properties;
+  properties.sourceRectangle = destRect;
+  properties.extendModeX = D2D1_EXTEND_MODE_CLAMP;
+  properties.extendModeY = D2D1_EXTEND_MODE_CLAMP;
+  properties.interpolationMode = D2D1_INTERPOLATION_MODE_LINEAR;
+
+  ID2D1ImageBrush* brush;
+  HRESULT hr = mDC->CreateImageBrush(aMaskImage, properties, &brush);
+  assert(hr == S_OK);
+  layerParams.opacityBrush = brush;
+
+  mDC->PushLayer(layerParams, nullptr);
+}
+
+void
+D2DSetup::PopLayer()
+{
+  mDC->PopLayer();
+}
+
+void
 D2DSetup::DrawLuminanceEffect()
 {
   /*
@@ -1106,6 +1144,9 @@ if (hr != S_OK) {
   assert(hr == S_OK);
   luminanceEffect->SetInput(0, tmpBitmap);
 
+  ID2D1Image* luminanceOutput;
+  luminanceEffect->GetOutput(&luminanceOutput);
+
   // Alpha only bitmap that we draw the effect into
   D2D1_PIXEL_FORMAT alphaFormat;
   alphaFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
@@ -1134,13 +1175,33 @@ if (hr != S_OK) {
   hr = alphaInputBitmap->CopyFromBitmap(nullptr, alphaBitmap, nullptr);
   assert(hr == S_OK);
 
+  ID2D1RectangleGeometry* rectGeo;
+  hr = mFactory->CreateRectangleGeometry(destRect, &rectGeo);
+  assert(hr == S_OK);
+
+// Use the alpha bitmap as a mask to paint the image.
+  ID2D1BitmapBrush* imageBitmapBrush;
+  D2D1_BITMAP_BRUSH_PROPERTIES bitmapBrushProperties;
+  bitmapBrushProperties.extendModeX = D2D1_EXTEND_MODE_CLAMP;
+  bitmapBrushProperties.extendModeY = D2D1_EXTEND_MODE_CLAMP;
+
+  hr = mDC->CreateBitmapBrush(alphaBitmap, &imageBitmapBrush);
+  if (hr != S_OK) {
+    _com_error err(hr);
+    LPCTSTR errMsg = err.ErrorMessage();
+    std::wcout << errMsg;
+  }
+  assert(hr == S_OK);
+
   mDC->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
   mDC->BeginDraw();
-  //mDC->FillOpacityMask(alphaInputBitmap, mWhiteBrush, D2D1_OPACITY_MASK_CONTENT_GRAPHICS, destRect, destRect);
-  mDC->FillOpacityMask(alphaInputBitmap, mWhiteBrush);
+  mDC->Clear();
+
+  PushLayer(alphaInputBitmap);
+  mDC->FillRectangle(destRect, mWhiteBrush);
+  PopLayer();
 
   hr = mDC->EndDraw();
-
   if (hr != S_OK) {
     _com_error err(hr);
     LPCTSTR errMsg = err.ErrorMessage();
@@ -1164,10 +1225,7 @@ if (hr != S_OK) {
   */
 
   /*
-  // Use the alpha bitmap as a mask to paint the image.
-  ID2D1BitmapBrush* imageBitmapBrush;
-  hr = mDC->CreateBitmapBrush(imageBitmap, &imageBitmapBrush);
-  assert(hr == S_OK);
+  
 
   mDC->BeginDraw();
   mDC->FillOpacityMask(alphaBitmap, mBlackBrush, destRect, destRect);

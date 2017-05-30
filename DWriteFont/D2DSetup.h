@@ -92,6 +92,8 @@ private:
     void CleanWICResources();
     void PrintBitmap(ID2D1Bitmap1* aBitmap);
     void PrintAlphaBitmap(ID2D1Bitmap1* aBitmap);
+    void PushLayer(ID2D1Image* aMaskImage);
+    void PopLayer();
 
     HWND mHWND;
 
