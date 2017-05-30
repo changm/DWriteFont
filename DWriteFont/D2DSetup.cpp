@@ -1079,18 +1079,14 @@ if (hr != S_OK) {
 
   // draw our image bitmap first
   mDC->BeginDraw();
-
-  // The luminance effect blends with the fill rect before!
-  mDC->FillRectangle(destRect, mWhiteBrush);
-  mDC->DrawImage(imageBitmap);
-
+  mDC->FillRectangle(destRect, mRedBrush);
   hr = mDC->EndDraw();
   assert(hr == S_OK);
   mDC->Flush();
 
   Present();
 
-  // Create a bitmap that can be used as an input
+  // Creates a read only bitmap
   ID2D1Bitmap1* tmpBitmap;
   D2D1_BITMAP_PROPERTIES1 properties;
   properties.colorContext = nullptr;
@@ -1106,25 +1102,20 @@ if (hr != S_OK) {
   ID2D1Effect* luminanceEffect;
   hr = mDC->CreateEffect(CLSID_D2D1LuminanceToAlpha, &luminanceEffect);
   assert(hr == S_OK);
-  // Our input cannot be the target bitmap or the copy bitmap.
   luminanceEffect->SetInput(0, tmpBitmap);
 
-  ID2D1Effect* floodEffect;
-  hr = mDC->CreateEffect(CLSID_D2D1Flood, &floodEffect);
-  assert(hr == S_OK);
-  floodEffect->SetValue(D2D1_FLOOD_PROP_COLOR, D2D1::Vector4F(1.0f, 1.0f, 1.0f, 1.0f));
+  // Alpha only bitmap that we draw the effect into
+  D2D1_PIXEL_FORMAT alphaFormat;
+  alphaFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+  alphaFormat.format = DXGI_FORMAT_A8_UNORM;
 
-  ID2D1Effect* compositeEffect;
-  mDC->CreateEffect(CLSID_D2D1Composite, &compositeEffect);
-
-  compositeEffect->SetInputEffect(0, floodEffect);
-  compositeEffect->SetInputEffect(1, luminanceEffect);
-
-  ID2D1Bitmap1* secondBitmap;
+  ID2D1Bitmap1* alphaBitmap;
+  properties.pixelFormat = alphaFormat;
   properties.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET;
-  hr = mDC->CreateBitmap(bitmapSize, nullptr, 0, properties, &secondBitmap);
+  hr = mDC->CreateBitmap(bitmapSize, nullptr, 0, properties, &alphaBitmap);
   assert(hr == S_OK);
 
+  mDC->SetTarget(alphaBitmap);
   mDC->BeginDraw();
   mDC->DrawImage(luminanceEffect);
   hr = mDC->EndDraw();
@@ -1132,25 +1123,18 @@ if (hr != S_OK) {
   mDC->Flush();
   Present();
 
-
-  // Try to draw our bitmap
-  /*
-  mDC->SetTarget(tmpBitmap);
-  mDC->BeginDraw();
-  mDC->DrawImage(luminanceEffect);
-  hr == mDC->EndDraw();
-  mDC->Flush();
+  // Readback the bitmap
+  ID2D1Bitmap1* alphaReadback;
+  properties.bitmapOptions = D2D1_BITMAP_OPTIONS_CPU_READ | D2D1_BITMAP_OPTIONS_CANNOT_DRAW;
+  hr = mDC->CreateBitmap(bitmapSize, nullptr, 0, properties, &alphaReadback);
   assert(hr == S_OK);
+  hr = alphaReadback->CopyFromBitmap(nullptr, alphaBitmap, nullptr);
+  assert(hr == S_OK);
+
+  PrintAlphaBitmap(alphaReadback);
+
 
   mDC->SetTarget(mTargetBitmap);
-  mDC->BeginDraw();
-  mDC->DrawImage(tmpBitmap);
-  mDC->EndDraw();
-  assert(hr == S_OK);
-  Present();
-  */
-
-  //PrintBitmap(tmpBitmap);
 
   pConverter->Release();
   pSource->Release();
@@ -1158,11 +1142,38 @@ if (hr != S_OK) {
   imageBitmap->Release();
 
   luminanceEffect->Release();
-  floodEffect->Release();
-  compositeEffect->Release();
-
   tmpBitmap->Release();
+  alphaBitmap->Release();
 }
+
+void
+D2DSetup::PrintAlphaBitmap(ID2D1Bitmap1* bitmap)
+{
+  D2D1_MAPPED_RECT map;
+  HRESULT hr = bitmap->Map(D2D1_MAP_OPTIONS_READ, &map);
+  if (hr != S_OK) {
+    _com_error err(hr);
+    LPCTSTR errMsg = err.ErrorMessage();
+    std::wcout << errMsg;
+  }
+  assert(hr == S_OK);
+
+  D2D1_SIZE_F size = bitmap->GetSize();
+  uint32_t stride = map.pitch;
+  uint8_t* data = (uint8_t*)map.bits;
+
+  uint32_t start_row = (size.height - 1) * stride;
+  printf("[ ");
+  for (uint32_t row = 0; row < stride; row++) {
+  uint32_t pos = start_row + row;
+    printf("%u, ", data[pos]);
+  }
+  printf(" ]");
+
+  bitmap->Unmap();
+}
+
+
 
 void
 D2DSetup::PrintBitmap(ID2D1Bitmap1* bitmap)
@@ -1189,20 +1200,6 @@ D2DSetup::PrintBitmap(ID2D1Bitmap1* bitmap)
         data[pos + 2],
         data[pos + 3]);
   }
-
-  /*
-  for (uint32_t height = 0; height < size.height; height++) {
-    for (uint32_t row = 0; row < stride; row += 4) {
-      uint32_t pos = height * row;
-      printf("( %u, %u, %u, %u ) ",
-        data[pos],
-        data[pos + 1],
-        data[pos + 2],
-        data[pos + 3]);
-    }
-    printf("\n");
-  }
-  */
 
   bitmap->Unmap();
 }

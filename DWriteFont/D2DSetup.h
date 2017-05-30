@@ -91,6 +91,7 @@ private:
     void ReleaseD2D();
     void CleanWICResources();
     void PrintBitmap(ID2D1Bitmap1* aBitmap);
+    void PrintAlphaBitmap(ID2D1Bitmap1* aBitmap);
 
     HWND mHWND;
 
