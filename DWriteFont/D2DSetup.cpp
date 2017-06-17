@@ -166,7 +166,8 @@ D2DSetup::CreateD2DDevices()
   hr = mFactory->CreateDevice(mDxgiDevice, &md2d_device);
   assert(hr == S_OK);
 
-  hr = md2d_device->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &mDC);
+  //hr = md2d_device->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &mDC);
+	hr = md2d_device->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_ENABLE_MULTITHREADED_OPTIMIZATIONS, &mDC);
   assert(hr == S_OK);
 }
 
@@ -1128,29 +1129,6 @@ D2DSetup::PrintAlphaBitmapWithCreateReadback(ID2D1Bitmap1* aAlphaBitmap)
 void
 D2DSetup::DrawLuminanceEffect()
 {
-  /*
-  mDC->BeginDraw();
-
-  D2D1_SIZE_F size = mTargetBitmap->GetSize();
-  D2D1_RECT_F destRect;
-  destRect.left = 0;
-  destRect.bottom = 0;
-  destRect.right = size.width;
-  destRect.top = size.height;
-
-  mDC->FillRectangle(destRect, mRedBrush);
-
-  HRESULT hr = mDC->EndDraw();
-if (hr != S_OK) {
-    _com_error err(hr);
-    LPCTSTR errMsg = err.ErrorMessage();
-    std::wcout << errMsg;
-  }
-  mDC->Flush();
-
-  Present();
-  */
-
   // Read the image from disk
   IWICBitmapDecoder *pDecoder = NULL;
   IWICBitmapFrameDecode *pSource = NULL;
@@ -1217,7 +1195,7 @@ if (hr != S_OK) {
   assert(hr == S_OK);
   mDC->Flush();
 
-  Present();
+  //Present();
 
   printf("Printing RGB values before hand\n");
   PrintTargetBitmap(bitmapSize);
