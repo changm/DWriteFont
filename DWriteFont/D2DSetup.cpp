@@ -1032,6 +1032,100 @@ D2DSetup::PopLayer()
 }
 
 void
+D2DSetup::PrintTargetBitmap(D2D1_SIZE_U aBitmapSize)
+{
+  // Do a readback
+  ID2D1Bitmap1* softwareBitmap;
+  D2D1_BITMAP_PROPERTIES1 properties;
+  properties.colorContext = nullptr;
+  mTargetBitmap->GetDpi(&properties.dpiX, &properties.dpiY);
+  properties.pixelFormat = mTargetBitmap->GetPixelFormat();
+  properties.bitmapOptions = D2D1_BITMAP_OPTIONS_CANNOT_DRAW |
+                             D2D1_BITMAP_OPTIONS_CPU_READ;;
+
+  HRESULT hr = mDC->CreateBitmap(aBitmapSize, nullptr, 0, properties, &softwareBitmap);
+  assert(hr == S_OK);
+
+  hr = softwareBitmap->CopyFromBitmap(nullptr, mTargetBitmap, nullptr);
+  assert(hr == S_OK);
+
+  // Print out the first row
+  D2D1_MAPPED_RECT map;
+  hr = softwareBitmap->Map(D2D1_MAP_OPTIONS_READ, &map);
+  assert(hr == S_OK);
+
+  uint32_t stride = map.pitch;
+  uint32_t last_row = stride * (aBitmapSize.height - 2);
+  uint8_t* data = map.bits;
+
+  for (uint32_t i = 0; i < stride; i += 4) {
+    printf("(%u, %u, %u, %u) ",
+            data[last_row + i],
+            data[last_row + i+1],
+            data[last_row + i+2],
+            data[last_row + i+3]);
+  }
+
+  softwareBitmap->Unmap();
+  softwareBitmap->Release();
+}
+
+void
+D2DSetup::PrintAlphaBitmap(ID2D1Bitmap1* aAlphaBitmap)
+{
+  D2D1_MAPPED_RECT map;
+  HRESULT hr = aAlphaBitmap->Map(D2D1_MAP_OPTIONS_READ, &map);
+  assert(hr == S_OK);
+
+  D2D1_SIZE_F size = aAlphaBitmap->GetSize();
+  uint32_t stride = map.pitch;
+  uint32_t last_row = stride * (size.height - 2);
+  uint8_t* data = map.bits;
+
+  for (uint32_t row = 0; row < size.height; row++) {
+    for (uint32_t column = 0; column < stride; column++) {
+      uint32_t i = (row * stride) + column;
+      //printf("%u ", data[last_row + i]);
+      assert(data[i] == 0);
+    }
+  }
+
+  for (uint32_t c = 0; c < stride; c++) {
+    printf("%u ", data[c]);
+  }
+
+  aAlphaBitmap->Unmap();
+}
+
+void
+D2DSetup::PrintAlphaBitmapWithCreateReadback(ID2D1Bitmap1* aAlphaBitmap)
+{
+  // Do a readback
+  ID2D1Bitmap1* softwareBitmap;
+  D2D1_BITMAP_PROPERTIES1 properties;
+  properties.colorContext = nullptr;
+  aAlphaBitmap->GetDpi(&properties.dpiX, &properties.dpiY);
+  properties.pixelFormat = aAlphaBitmap->GetPixelFormat();
+  properties.bitmapOptions = D2D1_BITMAP_OPTIONS_CANNOT_DRAW |
+                             D2D1_BITMAP_OPTIONS_CPU_READ;
+
+  D2D1_SIZE_F size = aAlphaBitmap->GetSize();
+  D2D1_SIZE_U usize;
+  usize.width = (uint32_t)size.width;
+  usize.height = (uint32_t)size.height;
+
+  HRESULT hr = mDC->CreateBitmap(usize, nullptr, 0, properties, &softwareBitmap);
+  assert(hr == S_OK);
+
+  hr = softwareBitmap->CopyFromBitmap(nullptr, aAlphaBitmap, nullptr);
+  assert(hr == S_OK);
+
+  PrintAlphaBitmap(softwareBitmap);
+
+  softwareBitmap->Release();
+}
+
+void
 D2DSetup::DrawLuminanceEffect()
 {
   /*
@@ -1111,20 +1205,22 @@ if (hr != S_OK) {
   destRect.right = size.width;
   destRect.top = size.height;
 
-  // Let's try the actual luminance effect now
   D2D1_SIZE_U bitmapSize;
   bitmapSize.width = size.width;
   bitmapSize.height = size.height;
 
   // draw our image bitmap first
   mDC->BeginDraw();
-  //mDC->FillRectangle(destRect, imageBitmap);
-  mDC->DrawImage(imageBitmap);
+  //mDC->DrawImage(imageBitmap);
+  mDC->Clear();
   hr = mDC->EndDraw();
   assert(hr == S_OK);
   mDC->Flush();
 
   Present();
+
+  printf("Printing RGB values before hand\n");
+  PrintTargetBitmap(bitmapSize);
 
   // Creates a read only bitmap
   ID2D1Bitmap1* tmpBitmap;
@@ -1165,8 +1261,14 @@ if (hr != S_OK) {
   assert(hr == S_OK);
   mDC->Flush();
   Present();
+
+  printf("\n\n\n\n\n");
+  printf("Alpha luminance bitmap\n");
+  PrintAlphaBitmapWithCreateReadback(alphaBitmap);
+
   mDC->SetTarget(mTargetBitmap);
 
+  /*
   // So we can use it as an input;
   ID2D1Bitmap1* alphaInputBitmap;
   properties.bitmapOptions = D2D1_BITMAP_OPTIONS_NONE;
@@ -1179,7 +1281,7 @@ if (hr != S_OK) {
   hr = mFactory->CreateRectangleGeometry(destRect, &rectGeo);
   assert(hr == S_OK);
 
-// Use the alpha bitmap as a mask to paint the image.
+  // Use the alpha bitmap as a mask to paint the image.
   ID2D1BitmapBrush* imageBitmapBrush;
   D2D1_BITMAP_BRUSH_PROPERTIES bitmapBrushProperties;
   bitmapBrushProperties.extendModeX = D2D1_EXTEND_MODE_CLAMP;
@@ -1197,7 +1299,7 @@ if (hr != S_OK) {
   mDC->BeginDraw();
   mDC->Clear();
 
-  PushLayer(alphaInputBitmap);
+  PushLayer(luminanceOutput);
   mDC->FillRectangle(destRect, mWhiteBrush);
   PopLayer();
 
@@ -1211,6 +1313,7 @@ if (hr != S_OK) {
 
   mDC->Flush();
   Present();
+  */
 
   // Readback the bitmap
   /*
@@ -1224,18 +1327,6 @@ if (hr != S_OK) {
   PrintAlphaBitmap(alphaReadback);
   */
 
-  /*
-  
-
-  mDC->BeginDraw();
-  mDC->FillOpacityMask(alphaBitmap, mBlackBrush, destRect, destRect);
-  assert(hr == S_OK);
-
-  hr = mDC->EndDraw();
-  mDC->Flush();
-  Present();
-  */
-
   pConverter->Release();
   pSource->Release();
   pDecoder->Release();
@@ -1244,62 +1335,6 @@ if (hr != S_OK) {
   luminanceEffect->Release();
   tmpBitmap->Release();
   alphaBitmap->Release();
-}
-
-void
-D2DSetup::PrintAlphaBitmap(ID2D1Bitmap1* bitmap)
-{
-  D2D1_MAPPED_RECT map;
-  HRESULT hr = bitmap->Map(D2D1_MAP_OPTIONS_READ, &map);
-  if (hr != S_OK) {
-    _com_error err(hr);
-    LPCTSTR errMsg = err.ErrorMessage();
-    std::wcout << errMsg;
-  }
-  assert(hr == S_OK);
-
-  D2D1_SIZE_F size = bitmap->GetSize();
-  uint32_t stride = map.pitch;
-  uint8_t* data = (uint8_t*)map.bits;
-
-  uint32_t start_row = (size.height - 1) * stride;
-  printf("[ ");
-  for (uint32_t row = 0; row < stride; row++) {
-  uint32_t pos = start_row + row;
-    printf("%u, ", data[pos]);
-  }
-  printf(" ]");
-
-  bitmap->Unmap();
-}
-
-void
-D2DSetup::PrintBitmap(ID2D1Bitmap1* bitmap)
-{
-  D2D1_MAPPED_RECT map;
-  HRESULT hr = bitmap->Map(D2D1_MAP_OPTIONS_READ, &map);
-  if (hr != S_OK) {
-    _com_error err(hr);
-    LPCTSTR errMsg = err.ErrorMessage();
-    std::wcout << errMsg;
-  }
-  assert(hr == S_OK);
-
-  D2D1_SIZE_F size = bitmap->GetSize();
-  uint32_t stride = map.pitch;
-  uint8_t* data = (uint8_t*)map.bits;
-
-  uint32_t start_row = (size.height - 1) * stride;
-  for (uint32_t row = 0; row < stride; row += 4) {
-  uint32_t pos = start_row + row;
-      printf("( %u, %u, %u, %u ) ",
-        data[pos],
-        data[pos + 1],
-        data[pos + 2],
-        data[pos + 3]);
-  }
-
-  bitmap->Unmap();
 }
 
 SkMaskGamma::PreBlend D2DSetup::CreateLUT()
